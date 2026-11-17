@@ -1,0 +1,19 @@
+SSA1000 sample test, November 17, 2026.
+Original packet captures retained unchanged: ssa1000-startup.pcapng and ssa1000-sample-break-2026-11-17.pcapng.
+Test capture: 2913 packets; Wireshark reported zero dropped packets.
+Device: Prolific PL2303GS USB serial adapter, COM4; USB VID 067B PID 23A3; USBPcap1 device address 5.
+USB bulk OUT endpoint 0x02, bulk IN endpoint 0x83.
+Measurement CSV reconstructed from device-to-host USB bulk payload, not exported by SSA.
+Raw incoming ASCII stream retained exactly, including CR line endings and nonnumeric marker records.
+Numeric records have form dddd,ffff followed by CR. Displacement interpreted as first value /1000 inches; force as second value in pounds.
+User confirmed displayed peak 114 lb at 0.043 inches; captured peak record is 0043,0114. This confirms the peak correspondence, not a full calibration of every sample.
+CSV first-frame timestamps are USB receive times, not independently measured device sample times. Samples remain in transmitted order.
+Do not remove duplicate displacement values or zero-force tail samples; they are present in the source stream.
+Host sent ASCII T during the captured test; precise command meaning is not yet proven. Device stream starts D followed by CR and ends TT followed by CR.
+Screenshot shows SSA file-opening error 8, Open/Create/Replace File in SSA File Create.vi -> SSA Main V_1.vi, APPEND.
+Attempted original CSV path transcribed from screenshot: C:\First_Name Last_Name_MAT01_261117_04_12_00.csv
+No matching CSV was found in the root directory or the searched VirtualStore/SSA installation locations. Export success is unconfirmed.
+SSA should remain open with graph/error to permit another export attempt. Do not start another test or close SSA before resolving export.
+Recovered numeric sample count: 
+144
+Recovered peak: 114 lb at 0.043 inches.

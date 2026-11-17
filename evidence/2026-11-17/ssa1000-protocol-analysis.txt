@@ -1,0 +1,110 @@
+SSA1000 — captured protocol analysis
+November 17, 2026
+
+RESULT
+The captured interface is a conventional USB serial connection carrying short ASCII commands and decimal measurement records. The available evidence supports building a replacement logger and plotting interface. Complete machine control has not yet been established. This analysis used saved files only; it did not open COM4 or transmit commands.
+
+CONNECTION
+Windows reported Prolific PL2303GS USB Serial COM Port (COM4).
+Observed USB identifiers: VID 067B, PID 23A3.
+Captured bus/device: USBPcap1, address 5.
+Bulk OUT endpoint: 0x02 (host -> tester).
+Bulk IN endpoint: 0x83 (tester -> host).
+Interrupt IN endpoint: 0x81; these packets contain adapter status and must not be parsed as measurement ASCII.
+COM number and USB device address may change after reconnection.
+
+SERIAL CONFIGURATION
+Confirmed final application setting: 9600 baud, 8 data bits, no parity, 1 stop bit (9600 8N1).
+Evidence: startup capture frame 324 sends class request 0x20 with seven bytes 80 25 00 00 00 00 08; completion frame 327 reports success.
+First four bytes are little-endian 0x00002580 = 9600, followed by stop=0, parity=0, data bits=8.
+The driver briefly configures 1200 baud and 7-bit formats earlier. Those are transitional settings, not the final setting used for ASCII communication.
+DTR and RTS are both asserted before application data: startup frames 340/341 set control value 0x0003.
+No automatic flow control is indicated by the final vendor write: startup frame 338 writes register 0x0a = 0xfe; for the PL2303 G/HXN driver, the flow-control mask 0x1c is set to the NONE value 0x1c. This interpretation is supported by Linux driver source; independent reproduction remains untested.
+The many USB enumeration, register, and pipe-management requests belong to the serial adapter driver. A serial-port application should use the installed driver rather than replay these USB requests.
+Opening/closing the port can change DTR/RTS even without serial writes. Their effect on this tester has not been isolated.
+
+EXACT STARTUP TRANSCRIPT
+Source: ssa1000-startup.pcapng. Times are seconds relative to this capture.
+59.360274  frame 344  host -> tester: 48 hex = ASCII H
+60.077167  frame 346  tester -> host: 55 hex = ASCII U
+60.078175  frame 348  tester -> host: 0d hex = CR
+61.604417  frame 350  tester -> host: 48 hex = ASCII H
+61.605462  frame 352  tester -> host: 0d hex = CR
+The host sends a bare H, without CR or LF.
+The reply is U<CR>, followed about 1.53 seconds later by H<CR>.
+These are startup/status observations. H must not yet be assumed to mean only a harmless handshake or only Home; U has not been assigned a proven semantic meaning.
+
+EXACT TEST TRANSCRIPT
+Source: ssa1000-sample-break-2026-11-17.pcapng.
+116.571560  frame 7     host -> tester: 54 hex = ASCII T
+116.573898  frame 9     tester -> host: D
+116.574894  frame 11    tester -> host: CR
+116.752362  frames 13–31    tester -> host: 0000,0000<CR>
+119.775780  frames 33–51    tester -> host: 0002,0045<CR>
+122.785965  frames 873–891  tester -> host: 0043,0114<CR> (peak)
+129.954308  frames 2873–2891 tester -> host: 0143,0000<CR>
+130.352419–130.354511 frames 2893/2895/2897: TT<CR>
+The only host-to-device serial payload in this entire test capture is the single byte T. It has no line ending.
+No per-reading polling command was needed during this observed cycle.
+T precedes the stream by about 2.34 ms. It is associated with the recorded test, but this capture alone does not establish whether T starts physical motion, arms acquisition, or requests a stream after another action. Do not assume a repeated T is a stop command.
+D is consistent with a data-start marker and TT with an end marker; those meanings are inferred from their positions in this one observed stream.
+
+MEASUREMENT FORMAT
+Observed numeric record: exactly four decimal digits, comma, four decimal digits, CR.
+Example: 0043,0114<CR>.
+Displacement in inches = first integer / 1000.
+Force in pounds = second integer.
+The user confirmed the display peak of 114 lb at 0.043 inches. That point and the plotted curve agree with this interpretation. This is not an independent calibration of the instrument.
+The wire carries force/displacement, not calculated stress/strain. Stress and strain would require specimen dimensions and gauge length, with a separately established interpretation of displacement.
+There is no timestamp, sample index, or checksum in these observed numeric records.
+A future reader must buffer arbitrary chunks and split on CR (0x0d). It must handle one byte per read as well as many records per read. LF alone is not the observed delimiter.
+Marker records and unknown/malformed records should be preserved in the raw log rather than silently discarded.
+
+RECOVERED TEST
+144 numeric records, 1445 incoming serial bytes total:
+D<CR> = 2 bytes, 144 records x 10 bytes = 1440 bytes, TT<CR> = 3 bytes.
+All 144 CSV raw value pairs were checked against the exact incoming text: zero mismatches.
+Peak: record 44, 114 lb, displacement 0.043 inches.
+70 records have positive force. The initial baseline plus 73 tail records have zero force.
+Last positive-force record: 1 lb at 0.069 inches; first subsequent zero: 0.070 inches.
+Data continue through 0.143 inches at zero force. Preserve that tail; do not confuse it with the graph's plotted cutoff or assume all later displacement is meaningful specimen extension.
+There is a 3.023418-second gap between the initial zero record and the next record.
+Thereafter 143 records span 10.178528 seconds. Median arrival interval is 0.071673 seconds (about 13.95 records/second), with gaps from 0.071413 to 0.071957 seconds.
+These are USB receive timings. A fixed internal sampling frequency and independent device timestamps have not been established.
+
+CAPTURE QUALITY
+Startup: 353 packets. Test: 2913 packets. Wireshark reported zero dropped packets.
+No packet has a capture length shorter than its recorded original length.
+The startup capture contains some unsuccessful vendor probe requests. Those precede successful application communication; they should not be described as failed measurement transfers.
+Canceled pending USB requests occur near teardown, after the measurement end marker. The test payload interval has no nonzero USB request status in the capture.
+Zero reported packet loss and well-formed records do not prove instrument calibration or that the firmware emitted every possible measurement.
+
+REPLACEMENT DESIGN
+A direct browser implementation is plausible using Chrome on Windows and Web Serial. The browser provides serial-port selection, 9600 8N1 configuration, streaming reads, and DTR/RTS control through the installed Windows adapter driver. No custom USB driver or local bridge is inherently required by what we observed.
+Browser access requires user selection/permission and a supported browser/secure origin (HTTPS or a suitable localhost development origin). The old SSA application must release the serial port before another application can open it.
+First implementation: offline replay of this capture, raw session logging, CR-delimited parsing, live force/displacement plot, peak tracking, and CSV export.
+Retain raw serial bytes alongside interpreted measurements and connection settings. Browser saving must be made reliable before relying on a test session as the only copy.
+Next controlled hardware step: compare a replacement connection and startup exchange while the machine is idle and the operator has established what port opening and H do. Do not automatically replay T or unknown strings.
+A future Start control must use an explicitly confirmed operation. A Stop control must not claim to stop the machine until the stop behavior has been captured and verified. Physical emergency-stop functions remain separate.
+Settings/continuous/incremental/cyclic modes, force limits, calibration, zeroing, jog/home, errors, abort/stop, repeated-test behavior and disconnect recovery are not decoded from this one test.
+No specimen-setting values were sent as serial payload during the captured test. This does not establish where those settings are stored or how they are changed.
+
+FILES AND EVIDENCE
+ssa1000-startup.pcapng — original startup capture.
+ssa1000-sample-break-2026-11-17.pcapng — original test capture.
+ssa1000-recovered-measurements.csv — reconstructed values, receive times, and packet references.
+ssa1000-device-to-host.txt / ssa1000-host-to-device.txt — exact test serial streams.
+ssa1000-usb-payloads.tsv — packet-level payload evidence, including adapter status.
+ssa1000-startup-usb-evidence.tsv — startup control requests and serial payloads.
+ssa1000-test-screen-and-export-error.png — user-supplied SSA graph and CSV error.
+ssa1000-sha256.txt — original preservation manifest, retained unchanged.
+The pictured SSA file-opening error is separate from USB acquisition. Recovering the serial stream did not depend on repairing that CSV export.
+
+DOCUMENTATION USED FOR INTERPRETATION
+Linux PL2303 driver (line settings, DTR/RTS, G/HXN flow-control definitions):
+https://github.com/torvalds/linux/blob/master/drivers/usb/serial/pl2303.c
+Chrome Web Serial API documentation:
+https://developer.chrome.com/docs/capabilities/serial
+Web Serial specification (browser API requirements):
+https://wicg.github.io/serial/
+

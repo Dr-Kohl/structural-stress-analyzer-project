@@ -1,0 +1,25 @@
+Installed SSA software investigation — November 17, 2026
+
+Sources inspected without running the installer, SSA executable, or any tester command:
+- Installed Program Files (x86)/SSA1000: SSA.exe, SSA.ini, SSA.aliases, data/SSA.html.
+- Downloads/SSA Installer_v3.zip and its already-extracted folder.
+- Help and FAQ Documentation: Setup and User Guide.pdf (8 pages), SSA 1000 Help.pdf (12 pages), Troubleshooting and FAQ.pdf (1 page).
+- Installer also contains Lesson Plans.pdf; not analyzed for device commands.
+
+Findings
+1. SSA.exe identifies as SSA1000, file/product version 1.0. The help and configuration indicate a LabVIEW application. The installer bundles the LabVIEW 2016 runtime and NI-VISA runtime, among many other dependencies. These help explain the size and installation time; they do not establish that an installation failed.
+2. Installed SSA.html describes an older communication-test application. It says that selecting the COM port at startup can automatically home a device that is not homed. It says Home moves the pressure rod. This gives context for captured H/U/H traffic but is not proof of the exact semantics of H or U.
+3. SSA.ini contains application/VI server settings; it does not expose an instrument command dictionary or baud setting.
+4. No standalone .vi, .ctl, .lvproj, .lvlib, C/C++ header/source, or Python files were found in the inspected extracted installer tree. A basic readable-string scan of SSA.exe did not reveal a usable command list. Compiled or compressed code may contain more; it has not been reverse-engineered.
+5. SSA 1000 Help.pdf p4 documents continuous, incremental and cyclic test modes, global maximum force, incremental force, cyclic force and number of cycles. Pages 5, 8–10 describe operation and Stop behavior. Exact serial commands for these features remain unknown.
+6. Help pp9–10 warns force can overshoot incremental/cyclic limits by up to 50 lb because of stopping delay. A replacement must not assume these software limits act instantaneously.
+7. Help p3 says to create/select a data folder and avoid C:\ or other built-in locations. Setup and User Guide p4 recommends an ordinary user data folder. The screenshot's attempted CSV write at C:\ is consistent with this documented restriction and the file-opening error. It does not by itself prove a broken installation.
+8. Help p12 says SSA Error Log.txt is stored in the selected data folder. It also describes known abnormal behavior including failure to home automatically after a cyclic test.
+9. FAQ p1 says the software begins plotting after 10 lb because measurement accuracy below that level is limited. Preserve the captured sub-10-lb readings, but do not present them as independently validated accurate forces.
+10. Setup and User Guide pp5–6 additionally describes standalone SAE/metric units, maximum force selection and continue-after-break/stop-after-break behavior. These may be hardware-specific. No serial mapping was established.
+11. The source manuals disagree in some details of automatic versus manual export and describe different application revisions. Treat them as feature-discovery guidance; confirm behavior against this installed version and capture.
+
+Implications
+The most useful next captures are individual known GUI actions: viewing Test Config, changing one setting at a time, and separately observing Home/Stop under an operator-controlled setup. Settings may be implemented partly in PC software rather than by dedicated parameter-setting serial messages; the single recorded test cannot distinguish that. Do not assign guessed letter commands from button labels.
+
+Original manuals were copied to a separate local ssa1000-reference-manuals folder outside the Git repository. Vendor PDFs, executable and installer were not added to this repository. The tracked report records findings and source page references only.

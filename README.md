@@ -95,3 +95,7 @@ Keep the original evidence unchanged. Put derived analyses and generated results
 See [the configuration investigation](docs/configuration-investigation.txt) and its preserved capture. Applying Continuous sent C and initially received C followed by CR. Selecting Incremental sent I, received I followed by CR, then sent MI020 followed by CR for the 20 lb setting. The 450/500 global-limit changes sent no numeric limit value.
 
 No serial replies were captured after MI020. Subsequent attempts to set 25/26 sent only I, and the final return to Continuous sent C without a reply. The GUI baseline was restored by the operator; firmware state remains unconfirmed. Re-establish an acknowledged known state before further machine operation.
+
+## Recovery update
+
+After closing SSA and power-cycling the tester, startup H received H followed by CR again. The operator reported the LCD ready to begin a cycle. See [recovery evidence](docs/recovery-after-power-cycle.txt). Communication recovered; the cause of the preceding silence and mode/limit behavior remain unresolved. No new test was started.

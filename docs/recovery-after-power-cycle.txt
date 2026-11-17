@@ -1,0 +1,17 @@
+Recovery after power cycle — November 17, 2026
+
+After the configuration investigation stopped receiving serial replies, the operator closed SSA, powered the tester off and back on, left USB connected, then reopened SSA and selected COM4.
+The operator reported the tester LCD read "Press START to begin the cycle" and the mechanism was already home.
+
+Capture: evidence/2026-11-17/ssa1000-recovery-after-power-cycle.pcapng
+65 packets, zero reported dropped packets.
+Frame 60, 25.938861 s: host sends bare ASCII H (48 hex).
+Frame 62, 26.016848 s: tester replies H (48 hex).
+Frame 64, 26.017888 s: tester replies CR (0d hex).
+The reply begins approximately 78 ms after the command.
+Unlike the earlier not-homed startup, no U<CR> preceded H<CR> in this recovery capture.
+
+Conclusion: bidirectional startup communication recovered, and the LCD was consistent with a home/ready state. This does not independently verify Continuous/Incremental mode, global force limit enforcement, or all other settings after power cycling.
+No T was transmitted and no new sample test was started in this capture.
+The silence after MI020 remains unresolved. A recovery after restarting both SSA and the tester does not isolate the original cause.
+The capture was stopped and saved after verification; no capture is currently running.

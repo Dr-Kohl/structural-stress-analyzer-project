@@ -99,3 +99,7 @@ No serial replies were captured after MI020. Subsequent attempts to set 25/26 se
 ## Recovery update
 
 After closing SSA and power-cycling the tester, startup H received H followed by CR again. The operator reported the LCD ready to begin a cycle. See [recovery evidence](docs/recovery-after-power-cycle.txt). Communication recovered; the cause of the preceding silence and mode/limit behavior remain unresolved. No new test was started.
+
+## Resuming the project
+
+Start with [the next-session handoff](docs/next-session.txt) for the latest evidence, unresolved parameter exchange, application/hardware state, and suggested next steps.

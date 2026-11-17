@@ -1,0 +1,47 @@
+Next session — Structural Stress Analyzer Project
+Session date: November 17, 2026
+
+Open index.html in this repository to use the working offline browser replay. No server or package installation is needed. The UI has playback, pause/reset, speeds, reading scrubbing, peak inspection, full CSV export, and current-view SVG graph export. Implementation tests are in tests/model.test.cjs and previously passed.
+
+Preserved in Git
+- Original startup and sample-break USB captures.
+- 144 recovered measurement records and exact serial payloads.
+- Protocol analysis, screenshot, packet evidence and hashes.
+- Browser interface, embedded fixture, parser and five automated tests.
+- Installed-software/manual investigation notes.
+- Configuration-command investigation and its 97-packet capture.
+- Power-cycle recovery notes and its 65-packet capture.
+Original evidence is not edited or line-ending converted.
+
+Known protocol
+COM4 was the Prolific USB serial adapter (VID 067B PID 23A3).
+Final observed serial configuration: 9600 8N1; DTR/RTS asserted.
+Startup sends bare H. A not-homed startup returned U<CR>, later H<CR>; after recovery while already home, H received H<CR> in approximately 78 ms.
+Recorded test: bare T, then D<CR>, 144 decimal-pair records, TT<CR>.
+Example 0043,0114<CR> corresponds to 0.043 inches and 114 pounds, matching the operator-confirmed peak.
+C selected Continuous in the GUI and initially received C<CR>.
+I selected Incremental, received I<CR>, then SSA sent MI020<CR> for the 20 lb setting.
+450/500 global-limit changes only sent C, with no numeric global limit observed.
+
+Unresolved issue — start here
+No serial replies appeared after MI020<CR>. Later attempts at 25/26 only sent I; MI025 and MI026 were NOT transmitted. The final C was also not acknowledged. The cause is unknown: do not assume an idempotency bug, proven firmware hang, accepted parameter syntax, or restored device mode.
+The operator closed SSA, power-cycled the tester, reopened SSA on COM4, and reported the LCD ready to begin a cycle. H then received H<CR>, confirming startup communication recovered. No further test or force-limit behavior was verified.
+No Python probing console or live Web Serial implementation has been built. No automatic A–Z command sweep has been performed. Stop/abort, cyclic commands, calibration, and comprehensive parameter formats are unknown.
+Inspect docs/configuration-investigation.txt and docs/recovery-after-power-cycle.txt before deciding on the next controlled experiment.
+
+Hardware/application state at handoff
+Wireshark recording was stopped and saved. SSA was open following recovery; the operator is instructed to close SSA before switching off the tester for supper.
+The last operator-reported GUI defaults before recovery were Continuous / Global Max 500 / stored Incremental Force 20. Internal mode after power cycling has not been independently confirmed.
+No application should send T, H, or other commands automatically. Selecting COM4 in SSA can home the mechanism. Be prepared for movement before connecting any future replacement.
+The capture helper has sometimes remained running after a recording stops; this blocked fresh captures until the operator ended USBPcapCMD.exe in Task Manager. Recheck processes and the selected USB device address before the next capture.
+
+Suggested next work
+1. Review the stalled parameter exchange and available documentation offline.
+2. Consider a manually operated diagnostic console with exact-byte TX/RX logging, no automatic startup commands or alphabet sweep, and explicit command selection.
+3. If another controlled capture is needed, prepare it before opening SSA; keep the mechanism clear and correlate one operator action at a time.
+4. Confirm firmware acceptance and Stop behavior before developing machine-control features. The existing browser app remains offline replay only.
+
+Local references outside Git
+Vendor PDFs are saved beside the project in ssa1000-reference-manuals. The original installer ZIP and extracted files remain in Downloads. The vendor executable, installer, and PDFs were not committed.
+No Git remote is configured and nothing has been published to GitHub. Commit author matches the existing Dr-Kohl GitHub identity: ClintKohl <kohlc@cedarville.edu>.
+A fresh session-wrapup Git bundle beside this project contains all committed history through this handoff. Copy that bundle and the reference-manuals folder to another drive/cloud location for protection against disk failure when convenient.

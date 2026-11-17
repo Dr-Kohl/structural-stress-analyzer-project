@@ -1,0 +1,61 @@
+Configuration investigation — November 17, 2026
+Source: evidence/2026-11-17/ssa1000-configuration-investigation.pcapng
+97 packets; Wireshark reported zero dropped packets.
+
+Operator baseline
+Continuous selected, Global Max Force 500 lb. Inactive defaults: Incremental Force 20 lb, Cyclic Force 15 lb, Number of Cycles 1.
+SSA was relaunched during capture, COM4 selected, and the operator observed automatic homing. No Start Test was requested during this investigation.
+The operator changed settings manually; the assistant inspected captured traffic.
+
+Serial transcript (capture-relative seconds; CR = 0x0d)
+91.412590   frame 60  host -> tester: H
+91.490706   frame 62  tester -> host: U
+91.491765   frame 64  tester -> host: CR
+105.149303  frame 66  tester -> host: H
+105.150285  frame 68  tester -> host: CR
+270.834316  frame 70  host -> tester: C
+270.836566  frame 72  tester -> host: C
+270.837613  frame 74  tester -> host: CR
+326.921309  frame 76  host -> tester: C
+326.923508  frame 78  tester -> host: C
+326.924529  frame 80  tester -> host: CR
+389.916893  frame 82  host -> tester: I
+389.919070  frame 84  tester -> host: I
+389.920124  frame 86  tester -> host: CR
+390.520286  frame 88  host -> tester: MI020<CR>
+476.398360  frame 90  host -> tester: I
+551.623637  frame 92  host -> tester: I
+619.001977  frame 94  host -> tester: I
+667.144249  frame 96  host -> tester: C
+
+Action mapping
+Frame 70: Continuous, Global Max changed 500 -> 450, OK.
+Frame 76: Continuous, Global Max restored 450 -> 500, OK.
+Frames 82 and 88: first selection of Incremental, Global Max 500, Incremental Force 20, OK.
+Frame 90: still Incremental, Incremental Force changed to 25, OK confirmed by operator.
+Frame 92: operator retried using Incremental Force 26, OK.
+Frame 94: Incremental Force returned to 20, but operator had not selected Continuous.
+Frame 96: operator explicitly selected Continuous and clicked OK. Global Max remained 500.
+
+Confirmed observations
+- Applying Continuous configuration sends one bare ASCII C; the first two observed instances received C<CR>.
+- Selecting Incremental initially sends bare I, receives I<CR>, then about 0.60 seconds later sends MI020<CR>.
+- MI020<CR> is six bytes: 4d 49 30 32 30 0d.
+- The wire parameter string is associated with the operator's Incremental Force 20 setting. Interpretation as an increment-setting command is well supported by context, but only one numeric value was actually transmitted.
+- No numeric global-maximum-force value was sent during either 450/500 apply action. Both only sent C.
+- Contrary to the intended experiment, neither MI025 nor MI026 was sent. Only additional I bytes were transmitted.
+- After frame 88 there are no captured incoming serial bytes, including after the final C.
+- Host USB write completions were visible. USB delivery does not prove firmware acceptance or a successful mode change.
+- No T serial command was transmitted in this capture.
+
+Interpretations and limits
+The global force limit appears to be maintained/enforced in the PC application rather than sent on configuration apply. This remains an inference; it could be transmitted during another unobserved operation.
+C and I are strongly associated with Continuous/Incremental selection. H/U/H timing during the observed automatic home supports an initialization/homing exchange, but does not isolate each letter's physical effect.
+The absence of replies after MI020 prevents concluding that reselecting the same mode alone causes the problem. The device may be awaiting further input, the app/firmware sequence may be incomplete, or another issue may have occurred. A firmware hang and a parser state have not been proven.
+The final C was sent but not acknowledged. The GUI was restored to Continuous / Global Max 500 / stored Incremental Force 20 according to the operator. The tester's internal mode was not confirmed.
+Do not describe MI025 or MI026 as verified commands; they were never observed on the wire. Do not use the final C as proof of hardware state.
+
+Next investigation
+Preserve this capture before attempting recovery. Re-establish an acknowledged known state through the original software with the operator prepared for automatic homing, before any further machine operation.
+For a future diagnostic console, support raw receive logging, explicit per-message transmission, exact byte/CR visibility, and no automatic alphabet sweep. Do not guess a Stop command.
+A controlled new session could isolate mode selection from parameter setting, but should not blindly replay MI020 or additional data to a potentially pending parser. Stop/abort and cyclic commands remain unknown.

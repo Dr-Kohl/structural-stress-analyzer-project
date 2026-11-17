@@ -11,7 +11,28 @@ The immediate aim is to preserve the captured protocol and test data, then build
 - 144 measurement records reconstructed from the serial stream.
 - Peak of 114 lb at 0.043 in matches the operator's displayed result.
 - No replacement software has connected to or commanded the tester.
-- No application implementation has been added yet.
+- Offline browser replay is implemented and opens directly from index.html; no server, installation, or network connection is required.
+
+## Run the local replay
+
+Open index.html in Microsoft Edge or Chrome, or double-click it in File Explorer. Keep index.html, styles.css, model.js, capture-data.js, and app.js together in this project folder.
+
+The page initially shows all 144 readings. Use Replay test to animate from the beginning, Pause to inspect, Reset to return to the first reading, and the slider to move to any reading. Speed choices are 0.5x, 1x, 2x, and 4x. The initial three-second gap in the capture is retained.
+
+Inspect peak jumps to reading 44: 114 lb at 0.043 in. Hover over the graph to inspect readings. Uncheck Show zero-force tail to focus the horizontal axis on the loaded portion.
+
+Export measurements saves all 144 readings, including raw fields and packet references, regardless of the playback position or chart view. Save graph exports the currently visible graph as an SVG. The page has no serial connection or machine controls.
+
+### Verify the implementation
+
+With Node.js available, run:
+
+```powershell
+node --test tests/model.test.cjs
+node --check app.js
+```
+
+Checks compare every replay value with the original captured serial stream, exercise every possible two-chunk split plus byte-at-a-time parsing, preserve incomplete and unknown records, check peak/tail/timing, and verify complete CSV output.
 
 ## Connection and protocol findings
 
@@ -44,8 +65,8 @@ The CSV was reconstructed from USB traffic. It is not an SSA-generated export. T
 
 ## Next development steps
 
-1. Replay the saved stream offline and reproduce the force/displacement curve.
-2. Handle arbitrary serial-read chunk sizes, CR-delimited records, marker records, and malformed input without losing raw bytes.
+1. Completed: replay the saved stream offline and reproduce the force/displacement curve.
+2. Parser implemented and tested offline: arbitrary chunk sizes, CR records, known markers, and retained unknown/incomplete text. Connect it to a future live reader.
 3. Add raw-session logging and reliable measurement export.
 4. Add a Web Serial connection using the existing Windows adapter driver.
 5. Verify connection signals and command behavior under operator-controlled conditions before enabling machine control.

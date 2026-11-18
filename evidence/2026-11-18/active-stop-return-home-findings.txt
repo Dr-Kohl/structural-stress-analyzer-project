@@ -1,0 +1,20 @@
+Observed active Stop / return-home sequence — November 18, 2026
+
+The operator reports Start initiated motion, Stop stopped it, and it appeared to return home. Exact downloaded browser log is ssa-observed-active-stop-return-home.jsonl with SHA-256.
+
+Chronological evidence (seconds relative to connection):
+8.0651 TX T
+8.0688 RX D<CR>
+8.2557 RX 0000,0000<CR> (one zero-force measurement)
+9.5906 TX S (first Stop, 1.526 seconds after T)
+9.9484 RX TU<CR> (about 0.358 seconds after first S)
+11.8438 RX H<CR> (about 2.253 seconds after first S)
+12.0530 TX S (second Stop, after Home reply)
+12.7522 RX S<CR> (simple idle reply)
+No H was transmitted by the browser in this session. No V was transmitted in this particular log. Exact TX sequence T,S,S; RX sequence D<CR>0000,0000<CR>TU<CR>H<CR>S<CR>.
+
+Interpretation: This is one observed active-stop-and-return sequence, supported by operator observation and first S preceding TU then Home. TU is plausibly the device user-stop termination marker in this context; its full firmware semantics remain undocumented. It must not be confused with normal TT or maximum-force TM. The simple S<CR> acknowledgment was only after a second S sent when Home had already been reported. Do not misattribute Home to that second S.
+
+Limits: The single measurement was zero force; stopping under significant load is unverified. These arrival timings are not guaranteed stop-latency measurements. This does not establish safety-rated emergency-stop behavior, force cutoff reliability, all mode behavior, or a general guarantee that every S homes. No repeat destructive or high-load test is needed to establish these exact bytes.
+
+Current published browser (3389723) retains TU in raw log but does not recognize its termination/return-home sequence; pending-test guard can remain locked despite later Home. Next software work: represent the observed TU -> H sequence separately and preserve its provenance, without sending automatic Home/Start or treating an ordinary idle S reply as proof of stopped motion. Do not infer actual load is absent solely from a reply.

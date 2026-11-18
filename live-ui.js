@@ -46,13 +46,16 @@ function render(){
   if($('live-stop-state').textContent!==message)$('live-stop-state').textContent=message;
  }
  $('live-version').textContent=live.version||'Not queried';$('live-last').textContent=live.lastReceived?new Date(live.lastReceived).toLocaleTimeString():'No received bytes';
+ const step=live.incrementalStep;
+ $('live-mode-status').textContent=live.configuring?'Setting Incremental 10 lb: '+live.setupState+'; no Start sent.':live.setupState==='failed'?'Incremental setup incomplete: '+live.setupError+' No automatic retry. Reconnect before trying setup again.':live.mode==='incremental'?'Incremental 10 lb requested (parameter acceptance unconfirmed). '+(step?(step.phase==='verify-pause'?'Step '+step.number+' reading received. Verify physical pause before Continue; specimen may remain loaded.':step.phase==='pending'?'Step '+step.number+' pending; waiting for reply and a nonzero force reading.':step.phase==='stopping'?'Stop requested; wait for return/end reports.':'Incremental test/return ended.'):'Ready for one confirmed Start.'):'Instrument mode: '+(live.mode==='continuous'?'Continuous reply received':'unknown; select a mode before testing')+'.';
+ $('machine-continue').disabled=!live.canResume;
  $('live-bytes').textContent='TX '+live.txHex.length/2+' · RX '+live.rxHex.length/2;
  $('connection').disabled=opening||!['disconnected','fault'].includes(live.phase);
  $('disconnect').disabled=!connected||live.busy;
- $('machine-home').disabled=!free||live.starting||live.awaitingHome||live.homing;$('machine-start').disabled=!live.canStart;
+ $('machine-home').disabled=!free||live.configuring||live.starting||live.awaitingHome||live.homing;$('machine-start').disabled=!live.canStart;
  $('machine-stop').disabled=!free;$('machine-stop').title='Send S once. Stopping behavior is unverified.';
  $('live-version-query').disabled=!free;
- for(const id of ['live-continuous','live-incremental'])$(id).disabled=!free||live.starting||live.awaitingHome||live.homing;
+ for(const id of ['live-continuous','live-incremental'])$(id).disabled=!free||live.configuring||live.starting||live.awaitingHome||live.homing;
  $('live-review').disabled=!['disconnected','fault'].includes(live.phase);
  $('machine-help').textContent=connected?'Research controls. Stop request is unverified; physical power remains the fallback. Draft limits are not applied.':'Machine state unknown. Connect deliberately; no automatic Home or Start.';
  $('live-transcript').textContent=live.entries.slice(-60).map(e=>Number(e.elapsed_s).toFixed(3)+' '+e.event+(e.text!==undefined?' '+e.text:'')+(e.message?' '+e.message:'')).join('\n');
@@ -61,7 +64,7 @@ function render(){
 }
 function update(){if(!renderTimer)renderTimer=setTimeout(()=>{renderTimer=null;render();},80);}
 async function issue(command,motionConfirmed=false){
- try{await live.send(command,{motionConfirmed});}
+ try{if(command==='R')await live.resumeIncrement({motionConfirmed,pauseConfirmed:motionConfirmed});else await live.send(command,{motionConfirmed});}
  catch(error){$('live-log-status').textContent=error.message;}
  render();
 }
@@ -90,7 +93,7 @@ $('disconnect').addEventListener('click',async()=>{if(!live||live.busy)return;aw
 $('live-review').addEventListener('click',()=>{window.SSAView.finishLive(live);$('live-review').disabled=true;});
 $('live-version-query').addEventListener('click',()=>issue('V'));
 $('live-continuous').addEventListener('click',()=>issue('C'));
-$('live-incremental').addEventListener('click',()=>issue('I'));
+$('live-incremental').addEventListener('click',async()=>{try{await live.configureIncremental();}catch(error){$('live-log-status').textContent=error.message;}render();});
 $('machine-stop').addEventListener('click',()=>issue('S'));
 $('software-stop-consent').addEventListener('change',render);
 $('software-stop-arm').addEventListener('click',()=>{
@@ -102,14 +105,18 @@ $('software-stop-disarm').addEventListener('click',()=>{
  catch(error){$('software-stop-error').textContent=error.message;$('software-stop-error').hidden=false;}render();
 });
 function confirmMotion(command){
- if(!live||live.phase!=='connected'||live.busy||live.starting||live.awaitingHome||live.homing||(command==='T'&&!live.canStart))return;
- pendingCommand=command;$('motion-title').textContent=command==='H'?'Request Home':'Start a physical test';
+ if(!live||live.phase!=='connected'||live.busy||live.configuring||live.awaitingHome||live.homing||(command==='R'?!live.canResume:live.starting)||(command==='T'&&!live.canStart))return;
+ pendingCommand=command;$('motion-title').textContent=command==='H'?'Request Home':command==='R'?'Continue one increment':'Start a physical test';
+ $('motion-ready-label').textContent=command==='R'?'I confirm the mechanism has physically paused, the guard is closed, I am clear of the loaded specimen and ready for one more increment, and I can cut physical power.':'I am ready for movement, the mechanism is clear, the device settings are appropriate, and I can cut physical power.';
  $('motion-description').textContent=command==='H'?'Send H once. The mechanism may move toward home. No automatic follow-up command is sent.':'Send T once. The tester may pull the specimen to failure using its current instrument settings. This does not apply the webpage’s configuration draft. Save or download this session before any destructive test.';
- if(command==='T')$('motion-description').textContent+=' '+(live.softwareStop?.status==='armed'?'Software stop threshold is ARMED at '+live.softwareStop.thresholdLb+' lb. It can overshoot and is not a hardware or safety limit.':'Software stop threshold is NOT ARMED. No automatic force-triggered Stop will be sent.');
+ if(command==='R')$('motion-description').textContent='Send T once to advance the existing Incremental test. All earlier steps stay on the graph. The requested increment is 10 lb, but actual force increases can be much larger. A received reading does not prove the mechanism has stopped. Do not touch the loaded specimen.';
+ if(command==='T'&&live.mode==='incremental')$('motion-description').textContent+=' Incremental 10 lb setup was requested; this starts the first step. Its acceptance and actual stopping force are not verified.';
+ if(command==='T'||command==='R')$('motion-description').textContent+=' '+(live.softwareStop?.status==='armed'?'Software stop threshold is ARMED at '+live.softwareStop.thresholdLb+' lb. It can overshoot and is not a hardware or safety limit.':'Software stop threshold is NOT ARMED. No automatic force-triggered Stop will be sent.');
  $('motion-ready').checked=false;$('motion-send').disabled=true;$('motion-dialog').showModal();
 }
 $('machine-home').addEventListener('click',()=>confirmMotion('H'));
 $('machine-start').addEventListener('click',()=>confirmMotion('T'));
+$('machine-continue').addEventListener('click',()=>confirmMotion('R'));
 $('motion-ready').addEventListener('change',()=>{$('motion-send').disabled=!$('motion-ready').checked;});
 $('motion-send').addEventListener('click',()=>{
  if(!$('motion-ready').checked||!pendingCommand)return;

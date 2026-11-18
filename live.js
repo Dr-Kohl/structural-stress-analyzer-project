@@ -10,6 +10,7 @@ class LiveSession{
   this.port=null;this.reader=null;this.readTask=null;this.closing=false;this.busy=false;this.starting=false;
   this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;this.lastTestResult=null;this.stopReturn=null;this.softwareStop=null;
   this.testIndex=0;this.testComplete=false;this.homing=false;this.requiresHome=false;
+  this.mode='unknown';this.modeSelection=null;this.setupState='idle';this.setupError='';this.setupWaiter=null;this.incrementalStep=null;
  }
  event(event,fields={}){
   const row={utc:this.utc(),elapsed_s:Math.max(0,(this.now()-this.started)/1000),test_index:this.testIndex,event,...fields};
@@ -17,8 +18,35 @@ class LiveSession{
  }
  log(){return this.entries.map(r=>JSON.stringify(r)).join('\n')+(this.entries.length?'\n':'');}
  get awaitingHome(){return !!this.stopReturn&&!this.stopReturn.homeReported;}
- get canStart(){return this.phase==='connected'&&!this.closing&&!this.busy&&!this.starting&&!this.awaitingHome&&!this.homing&&!this.requiresHome&&!['triggered','sending'].includes(this.softwareStop?.status)&&(!this.testIssued||this.testComplete);}
+ get configuring(){return ['selecting','settling','parameter'].includes(this.setupState);}
+ get canStart(){return this.phase==='connected'&&!this.closing&&!this.busy&&!this.configuring&&this.setupState!=='failed'&&!this.starting&&!this.awaitingHome&&!this.homing&&!this.requiresHome&&!['triggered','sending'].includes(this.softwareStop?.status)&&(!this.testIssued||this.testComplete);}
  get canPrepareTest(){return this.canStart&&(!this.samples.length||this.testComplete);}
+ get canResume(){return this.phase==='connected'&&!this.closing&&!this.busy&&!this.configuring&&this.mode==='incremental'&&this.starting&&!this.awaitingHome&&!this.homing&&!this.requiresHome&&this.incrementalStep?.phase==='verify-pause'&&!['triggered','sending','sent','failed'].includes(this.softwareStop?.status);}
+ cancelSetup(message){if(this.setupWaiter){const reject=this.setupWaiter.reject;this.setupWaiter=null;reject(new Error(message));}}
+ waitForSetup(ms,modeReply=false){
+  return new Promise((resolve,reject)=>{
+   const timer=setTimeout(()=>{this.setupWaiter=null;modeReply?reject(new Error('No I reply within 3 seconds; no parameter or retry sent.')):resolve();},ms);
+   this.setupWaiter={resolve:()=>{clearTimeout(timer);this.setupWaiter=null;resolve();},reject:error=>{clearTimeout(timer);this.setupWaiter=null;reject(error);},modeReply};
+  });
+ }
+ async configureIncremental(){
+  if(!this.canPrepareTest)throw new Error('Configure Incremental only while idle before a new test.');
+  this.setupState='selecting';this.setupError='';this.mode='unknown';this.incrementalStep=null;this.update();
+  const reply=this.waitForSetup(3000,true);reply.catch(()=>{});
+  try{
+   this.event('incremental_setup_requested',{increment_lb:10});
+   await this.send('I',{reason:'incremental-setup'});await reply;
+   if(this.phase!=='connected'||this.setupState!=='selecting')throw new Error('Incremental setup interrupted.');
+   this.setupState='settling';this.update();await this.waitForSetup(400);
+   if(this.phase!=='connected'||this.setupState!=='settling')throw new Error('Incremental setup interrupted.');
+   this.setupState='parameter';await this.send('MI010\r',{reason:'incremental-setup'});
+   if(this.phase!=='connected'||this.setupState!=='parameter')throw new Error('Incremental setup interrupted.');
+   this.setupState='ready';this.mode='incremental';this.machine='Incremental 10 lb setup sent — parameter acceptance unconfirmed';
+   this.event('incremental_setup_sent',{increment_lb:10,parameter_acknowledged:false});
+  }catch(error){this.cancelSetup(error.message);this.setupState='failed';this.setupError=error.message;this.mode='unknown';try{this.event('incremental_setup_failed',{message:error.message});}catch{}throw error;}
+  finally{this.update();}
+ }
+ async resumeIncrement({motionConfirmed=false,pauseConfirmed=false}={}){return this.send('T',{motionConfirmed,pauseConfirmed,resume:true});}
  armSoftwareStop(value){
   if(!this.canPrepareTest)throw new Error('Arm only while idle before Start, or after the previous test has completed and any return has finished.');
   if(this.softwareStop?.status==='armed')throw new Error('Disarm before changing the threshold.');
@@ -99,10 +127,16 @@ class LiveSession{
  }
  record(line){
   const m=/^(\d{4}),(\d{4})$/.exec(line);
+  if(this.configuring&&(m||['D','ID','TT','TM','TU','U','H'].includes(line))){this.setupState='failed';this.cancelSetup('Unexpected device activity during setup; no further configuration bytes will be sent.');}
   if(m){
    this.samples.push({sample_index:this.samples.length+1,time_s:Math.max(0,(this.now()-this.started)/1000),displacement_in:Number(m[1])/1000,force_lb:Number(m[2]),raw_field_1:m[1],raw_field_2:m[2]});
    this.machine='Measurement received — motion unconfirmed';
+   if(this.mode==='incremental'&&this.starting&&this.incrementalStep?.marker&&['pending','verify-pause'].includes(this.incrementalStep.phase)&&Number(m[2])>0){
+    this.incrementalStep.phase='verify-pause';this.machine='Increment reading received — confirm physical pause before Continue; specimen may remain loaded';
+    this.event('incremental_reading',{step:this.incrementalStep.number,reading:{...this.samples.at(-1)},physical_pause_verified:false});
+   }
   }else if(line==='D')this.machine='Test data marker received';
+  else if(line==='ID')this.machine='Incremental reply marker received — waiting for measurement';
   else if(line==='TT'){this.machine='Test end marker received';this.starting=false;this.testComplete=true;this.finishSoftwareStop('TT end marker received');}
   else if(line==='TM'){
    // Correlated with the tester's maximum-force display in the saved wood trial.
@@ -134,39 +168,58 @@ class LiveSession{
   }
   else if(line==='U')this.machine='Last report: U (seen during homing)';
   else if(line==='S')this.machine='S reply received — stopped state unverified';
-  else if(line==='C'||line==='I')this.machine=line+' reply received — settings unverified';
+  else if(line==='C'||line==='I'){
+   this.machine=line+' reply received — settings unverified';
+   if(line==='I'&&this.setupState==='selecting'&&this.setupWaiter?.modeReply)this.setupWaiter.resolve();
+   if(line==='C'&&this.modeSelection==='C'){this.mode='continuous';this.modeSelection=null;}
+  }
   else if(/^V[\x20-\x7e]{1,60}$/.test(line))this.version=line.slice(1);
+  if(this.mode==='incremental'&&this.incrementalStep&&this.starting&&this.incrementalStep.phase==='pending'&&line===(this.incrementalStep.number===1?'D':'ID'))this.incrementalStep.marker=line;
+  if(['TT','TM','TU'].includes(line)&&this.incrementalStep)this.incrementalStep.phase='ended';
   this.event('record',{text:visible(new Uint8Array(Array.from(line,c=>c.charCodeAt(0))))});
   if(m)this.checkSoftwareStop(this.samples.at(-1));
  }
- async send(command,{motionConfirmed=false,reason='manual'}={}){
-  if(!Object.hasOwn(COMMANDS,command))throw new Error('Only the six observed command bytes are available.');
+ async send(command,{motionConfirmed=false,reason='manual',resume=false,pauseConfirmed=false}={}){
+  const parameter=command==='MI010\r'&&reason==='incremental-setup'&&this.setupState==='parameter';
+  if(!Object.hasOwn(COMMANDS,command)&&!parameter)throw new Error('Only the six observed command bytes are available; parameter writes require the Incremental setup sequence.');
   if(this.phase!=='connected'||this.closing)throw new Error('Connect before sending a command.');
   if(this.busy)throw new Error('Another write is pending; no duplicate was sent.');
+  if(this.configuring&&!['S','V'].includes(command)&&reason!=='incremental-setup')throw new Error('Incremental setup is pending; no overlapping command was sent.');
   if(['H','T'].includes(command)&&!motionConfirmed)throw new Error('An explicit motion confirmation is required.');
-  if(command==='T'&&!this.canStart)throw new Error('A test is already requested or a test, force-limit event or return is pending. Wait for completion; a force-limit event requires Home.');
+  if(resume&&(command!=='T'||!this.canResume||!pauseConfirmed))throw new Error('Continue requires a new increment reading and explicit confirmation that the mechanism has paused.');
+  if(command==='T'&&!resume&&!this.canStart)throw new Error('A test is already requested or a test, force-limit event or return is pending. Wait for completion; a force-limit event requires Home.');
   if((this.starting||this.awaitingHome||this.homing)&&['H','C','I'].includes(command))throw new Error('A test or return is pending; only S or V may be sent.');
   this.busy=true;let writer;
   try{
+   if(command==='S'&&this.configuring){this.setupState='failed';this.cancelSetup('Stop interrupted Incremental setup; no further configuration bytes will be sent.');}
+   if(command==='S'&&this.incrementalStep)this.incrementalStep.phase='stopping';
+   if(['C','I'].includes(command)){this.mode='unknown';this.modeSelection=command;if(command==='C'){this.incrementalStep=null;this.setupState='idle';this.setupError='';}}
    if(command==='S'&&reason!=='software-threshold'&&this.testIssued)this.finishSoftwareStop('Manual Stop request superseded automatic threshold');
-   if(command==='T'){
+   if(command==='T'&&!resume){
     this.testIndex++;this.testComplete=false;this.samples=[];this.lastTestResult=null;this.stopReturn=null;
     if(this.softwareStop?.status!=='armed')this.softwareStop=null;
     this.event('test_started',{previous_recordings:'Retained in exact-byte log',software_stop_threshold_lb:this.softwareStop?.thresholdLb??null});
    }
-   this.event('tx_attempt',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1,reason,
+   if(command==='T'&&this.mode==='incremental'){
+    const step=resume?this.incrementalStep.number+1:1;
+    if(resume)this.event('incremental_pause_confirmed',{step:step-1,confirmed_by:'operator'});
+    this.incrementalStep={number:step,phase:'pending',marker:null};this.event('incremental_step_requested',{step,resume,increment_lb:10});
+   }
+   const bytes=new Uint8Array(Array.from(command,c=>c.charCodeAt(0))),label=parameter?'Incremental 10 lb parameter':resume?'Continue increment request':COMMANDS[command];
+   this.event('tx_attempt',{hex:hex(bytes),text:visible(bytes),byte_count:bytes.length,reason,
     ...(command==='T'?{software_stop_threshold_lb:this.softwareStop?.status==='armed'?this.softwareStop.thresholdLb:null}:{})});
-   const pending=COMMANDS[command]+' pending — outcome unconfirmed';this.machine=pending;
+   const pending=label+' pending — outcome unconfirmed';this.machine=pending;
    if(command==='T'){this.starting=true;this.testIssued=true;}
    if(command==='H')this.homing=true;
-   writer=this.port.writable.getWriter();await writer.write(new Uint8Array([command.charCodeAt(0)]));
-   this.txHex+=hex([command.charCodeAt(0)]);
-   if(this.machine===pending)this.machine=COMMANDS[command]+' sent — outcome unconfirmed';
-   this.event('tx_result',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1,reason,host_write_completed:true,acknowledged_by_tester:false});
+   writer=this.port.writable.getWriter();await writer.write(bytes);
+   this.txHex+=hex(bytes);
+   if(this.machine===pending)this.machine=label+' sent — outcome unconfirmed';
+   this.event('tx_result',{hex:hex(bytes),text:visible(bytes),byte_count:bytes.length,reason,host_write_completed:true,acknowledged_by_tester:false});
   }catch(error){try{writer?.releaseLock();}catch{}writer=null;await this.fail('Write/logging failed; delivery may be unknown: '+error.message);throw error;}
   finally{try{writer?.releaseLock();}catch{}this.busy=false;this.update();void this.flushSoftwareStop();}
  }
  async fail(message,insideReader=false){
+  this.cancelSetup(message);
   this.error=message;this.machine='Unknown — communication fault';
   if(this.softwareStop&&['armed','triggered','sending'].includes(this.softwareStop.status)){
    this.softwareStop.status='failed';this.softwareStop.error='Software monitoring/stop not confirmed: '+message;
@@ -177,6 +230,7 @@ class LiveSession{
  async disconnect({fault=false,insideReader=false}={}){
   if(this.closing)return;
   this.closing=true;this.phase='disconnecting';this.update();
+  this.cancelSetup('Disconnected during Incremental setup.');
   try{this.finishSoftwareStop('Connection closed; software monitoring ended');}catch{}
   try{await this.reader?.cancel();}catch{}
   if(!insideReader){try{await this.readTask;}catch{}}

@@ -11,7 +11,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await context.addInitScript(()=>{
    let input;const state={writes:[],opens:0,requests:0,closes:0,signals:[],failWrite:false,failRead:false};
    const port={getInfo:()=>({usbVendorId:0x067b,usbProductId:0x23a3}),
-    async open(options){state.opens++;state.options=options;this.readable=new ReadableStream({start(c){input=c;}});this.writable=new WritableStream({write(bytes){if(state.failWrite)throw new Error('mock write failure');state.writes.push([...bytes]);}});},
+    async open(options){state.opens++;state.options=options;this.readable=new ReadableStream({start(c){input=c;}});this.writable=new WritableStream({write(bytes){if(state.failWrite)throw new Error('mock write failure');state.writes.push([...bytes]);if(state.autoIncrementalAck&&bytes.length===1&&bytes[0]===73)input.enqueue(new Uint8Array([73,13]));}});},
     async setSignals(signals){state.signals.push(signals);},async close(){state.closes++;}};
    state.rx=value=>input.enqueue(new Uint8Array(Array.from(value,c=>c.charCodeAt(0))));state.unplug=()=>input.error(new Error('mock unplug'));
    window.__ssaFake=state;
@@ -201,5 +201,49 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.screenshot({path:path.join(work,'multiple-tests-desktop.png'),fullPage:true});
   await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
   console.log('PASS: direct picker with cancellation; three Starts/Stops on one port; wait for Home; fresh graph; per-test threshold consent; complete multi-test raw export; no automatic rearm or reconnect.');
+  // Operator-driven Incremental: captured setup, distinct Continue, one graph.
+  await page.reload();await page.evaluate(()=>__ssaFake.autoIncrementalAck=true);await page.locator('#connection').click();
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
+  await page.locator('#live-incremental').click();
+  await page.waitForFunction(()=>document.getElementById('live-mode-status').textContent.includes('Ready for one confirmed Start'));
+  assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[73],[77,73,48,49,48,13]],'setup is I, I CR reply, then MI010 CR without T');
+  await page.locator('#software-stop-value').fill('200');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/Incremental 10 lb setup/);
+  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.evaluate(()=>__ssaFake.rx('D\r0000,0000\r'));await page.waitForFunction(()=>document.getElementById('count').textContent==='1');
+  assert.equal(await page.locator('#machine-continue').isDisabled(),true);
+  await page.evaluate(()=>__ssaFake.rx('0001,0057\r'));await page.waitForFunction(()=>!document.getElementById('machine-continue').disabled);
+  assert.equal(await page.locator('#machine-start').isDisabled(),true);
+  await page.locator('#machine-continue').click();assert.equal(await page.locator('#motion-send').isDisabled(),true);
+  assert.match(await page.locator('#motion-ready-label').textContent(),/physically paused/);
+  await page.locator('#motion-dialog [data-close]').first().click();assert.equal(await page.evaluate(()=>__ssaFake.writes.length),3);
+  for(const reading of ['0003,0132','0005,0176','0006,0214']){
+   await page.locator('#machine-continue').click();assert.equal(await page.locator('#motion-ready').isChecked(),false);
+   await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+   assert.equal(await page.locator('#machine-continue').isDisabled(),true);
+   await page.evaluate(()=>__ssaFake.rx('I'));await page.evaluate(()=>__ssaFake.rx('D\r'));
+   assert.equal(await page.locator('#machine-continue').isDisabled(),true,'ID alone is not a physical pause');
+   const count=await page.evaluate(()=>__ssaFake.writes.length);await page.evaluate(t=>__ssaFake.rx(t+'\r'),reading);
+   if(reading==='0006,0214')await page.waitForFunction(()=>__ssaFake.writes.at(-1)[0]===83);
+   else{await page.waitForFunction(()=>!document.getElementById('machine-continue').disabled);assert.equal(await page.evaluate(()=>__ssaFake.writes.length),count,'readings must not send another T');}
+  }
+  await page.waitForFunction(()=>document.getElementById('count').textContent==='5');assert.equal(await page.locator('#count').textContent(),'5');assert.equal(await page.locator('#peak').textContent(),'214');
+  assert.equal(await page.locator('#machine-continue').isDisabled(),true);
+  await page.evaluate(()=>__ssaFake.rx('TU\rH\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
+  assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[73],[77,73,48,49,48,13],[84],[84],[84],[84],[83]]);
+  await page.locator('#save-data').click();const incExport=page.waitForEvent('download');await page.locator('[data-export=session]').click();
+  const incDl=await incExport,incFile=path.join(work,'incremental.session.json');await incDl.saveAs(incFile);const incArchive=JSON.parse(await fs.readFile(incFile,'utf8'));
+  assert.deepEqual(incArchive.samples.map(s=>s.force_lb),[0,57,132,176,214]);assert.match(incArchive.source.description,/Incremental 10 lb requested; 4 step requests/);
+  const incRows=incArchive.raw.logText.trim().split('\n').map(JSON.parse);
+  assert.equal(incRows.filter(e=>e.event==='test_started').length,1);assert.equal(incRows.filter(e=>e.event==='incremental_pause_confirmed').length,3);
+  assert.equal(incRows.filter(e=>e.event==='software_stop_triggered').length,1);
+  await page.locator('#save-dialog [data-close]').first().click();
+  await page.screenshot({path:path.join(work,'incremental-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:375,height:1000});await page.screenshot({path:path.join(work,'incremental-mobile.png'),fullPage:true});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+  await page.setViewportSize({width:1366,height:1000});await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
+  await page.locator('#live-review').click();await page.reload();assert.match(await page.locator('#source-label').textContent(),/Incremental 10 lb requested/);
+  assert.equal(await page.locator('#machine-continue').isDisabled(),true);assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.deepEqual(errors,[]);
+  console.log('PASS: captured Incremental setup; confirmed manual Continue; ID/data boundary; four steps on one graph; software stop across steps; audit/export/recovery; no auto-resume; desktop/mobile.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

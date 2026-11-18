@@ -53,9 +53,10 @@ Connection uses 9600 8N1, no flow control, with DTR and RTS on. It sends **zero 
 - **Home** sends bare `H` only after its own motion confirmation.
 - **Start Test** sends bare `T` only after its own motion confirmation. Multiple tests share one connection. Start becomes available after TT or a completed TU/H return; a maximum-force TM event requires an explicit Home and its reply first. Duplicate or overlapping starts remain blocked. Each Start clears the graph for the new test; previous measurements and test boundaries remain in the complete exact-byte log. CSV/chart exports show the current test, while complete-session JSON includes its measurements plus exact raw bytes/logs for all tests in this connection. The user explicitly authorized implementing T on November 18. No browser test has been started on hardware during implementation.
 - **Stop request** sends bare `S`. An idle `S\r` reply and operator-observed active stop/return sequences have been recorded, including the armed 100 lb trial. Stopping performance and peak force after the request are not independently verified. A request or reply must never be presented as proof that the machine stopped.
-- **Select Continuous** and **Select Incremental only** send bare `C` / `I`. These request the observed mode selections only; they do not apply any numeric fields. No MI020, cyclic command, jog command, calibration command, or guessed parameters are sent.
+- **Select Continuous** sends bare `C`. **Set Incremental · 10 lb** sends `I`, waits for `I\r`, waits 400 ms as in the captured exchange, then sends exactly `MI010\r`. No Start is sent during setup. There is no verified parameter acknowledgment, so the page labels it requested. Other increments, Cyclic, jog, calibration and guessed parameters remain unavailable.
+- **Continue increment** sends one confirmed `T` for the existing Incremental test, preserving all measurements and the software-stop monitor. It requires a new nonzero reading following the expected D/ID reply and operator confirmation that the mechanism has physically paused. ID alone does not establish a pause. No automatic resumes or retries occur.
 - **Maximum-force research:** [saved-evidence review](docs/maximum-force-investigation.txt) supports a possible PC-side software stop threshold; no numeric hardware-setting command is established. The explicitly armed experimental software threshold below implements a one-shot S request, not a hardware setting.
-- **Test Config remains a local draft.** Global maximum force, incremental force, cyclic force and cycle count are not applied or enforced by this page. Start uses the instrument's current settings, which the browser cannot verify.
+- **Test Config remains a local draft.** Global maximum force, incremental force, cyclic force and cycle count are not applied or enforced by this page. Start uses the instrument's current settings. The separate live Incremental button requests only the captured 10 lb setting; Test Config remains unrelated to that request.
 
 Live data and exact RX/TX-attempt/result events are retained in browser recovery. **Download live log** preserves a JSONL file even if no measurements arrive; check the browser download completed. Recovery is not a durable disk-write guarantee. A logging failure or a read/write error closes the connection without retry; physical motion may continue. The browser warns before unloading a connected page, but cannot guarantee that a tab or computer stays open.
 
@@ -94,7 +95,7 @@ See [the exact chronology and limitations](evidence/2026-11-18/active-stop-retur
 Data/model tests need Node.js:
 
 ```powershell
-node --test tests/model.test.cjs tests/workspace.test.cjs tests/live.test.cjs
+node --test tests/model.test.cjs tests/workspace.test.cjs tests/live.test.cjs tests/incremental.test.cjs
 node --check app.js
 ```
 
@@ -143,7 +144,7 @@ Observed connection: Prolific USB serial adapter (COM4 during capture, VID 067B 
 
 **Unresolved:** no serial replies appeared after MI020. Attempts at 25/26 only sent I; MI025 and MI026 were never captured. The final C was unacknowledged. Closing SSA and power-cycling the tester restored H → H + CR, without establishing the cause. Global 450/500 changes only sent C; ownership/enforcement of the limit remains unverified. Stop/abort, cyclic commands, calibration and full command semantics remain unknown.
 
-The [final webpage plan](docs/final-webpage-plan.txt) describes the intended live interface. The familiar layout and experimental Web Serial implementation are now present; browser connection and machine actions still require hardware validation with the operator present. Numeric live configuration remains unavailable. No hardware access is needed to continue work on offline features.
+The [final webpage plan](docs/final-webpage-plan.txt) describes the intended live interface. The familiar layout and experimental Web Serial implementation are now present; browser connection and machine actions still require hardware validation with the operator present. Only the captured Incremental 10 lb live setup is exposed; other numeric live configuration remains unavailable. No hardware access is needed to continue work on offline features.
 
 ## Local Git and public release
 
@@ -159,3 +160,15 @@ git log --oneline
 git add <specific changed files>
 git commit -m "Describe the change"
 ```
+
+## Incremental workflow (experimental, captured 10 lb setup)
+
+1. Save the previous recording and close original SSA/Python. With the covers and guard in place and the instrument ready, connect and read version. Connection sends no startup commands.
+2. Click **Set Incremental · 10 lb**. The page waits for an exact I reply before sending MI010 with carriage return; no acknowledgment is invented for that parameter. Setup stops on missing mode reply, Stop, disconnect, or unexpected device activity. An incomplete setup blocks Start; reconnect before attempting it again. Selecting Continuous explicitly abandons that setup.
+3. Optionally arm the separate overall software stop threshold before the first Start. It stays active across increments until triggered, cancelled, or the test ends. It is not the nominal increment size and does not impose an exact maximum.
+4. Click **Start Test**, confirm movement, and send once. A zero reading does not enable Continue. After a nonzero reading associated with the step reply, physically verify the mechanism has paused. Click **Continue increment**, confirm the physical pause and readiness, and send once for each additional step. The specimen can remain loaded during pauses; keep clear.
+5. Stop remains available. S is a request, not proof of unloading. Wait for device end/return reports and verify the machine's actual state. Home is not automatically sent. A terminal TM requires explicit Home before a new test; a normal TU/H return unlocks a fresh Start. Do not resume a paused specimen using the new-test Start button.
+
+The original SSA capture requested 10 lb but achieved 57,132,176,214,249,286,320 lb at .001,.003,.005,.006,.007,.008,.009 in. Actual step increases of 34–75 lb show this is not a precise 10 lb load controller or slower motor speed. Its first T returned D plus readings; later T requests returned ID then another reading. Identical MI010 bytes also preceded failed exchanges before operator reset, so the application/firmware instability is unresolved. The replacement never replays failed bursts or infers stopped motion from a reading alone.
+
+The graph, CSV and structured session samples retain the whole current Incremental test across all resumes. Source descriptions include mode and number of step requests; raw logs retain setup, operator pause confirmations, step numbers, threshold outcomes and all connection bytes. Reload/recovery does not restore a hardware connection, Incremental readiness or automatic operation. The implementation is verified with captured data and simulated ports; no real instrument command is sent during implementation or automated tests.

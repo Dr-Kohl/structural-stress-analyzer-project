@@ -19,7 +19,7 @@ class SerialParser{
     const line=this.pending;this.pending='';
     const m=/^(\d{4}),(\d{4})$/.exec(line);
     if(m)this.records.push({raw_field_1:m[1],raw_field_2:m[2],displacement_in:Number(m[1])/1000,force_lb:Number(m[2])});
-    else if(['D','TT','TM','TU','U','H'].includes(line))this.markers.push(line);
+    else if(['D','ID','TT','TM','TU','U','H'].includes(line))this.markers.push(line);
     else this.unknown.push(line);
    }else this.pending+=c;
   }

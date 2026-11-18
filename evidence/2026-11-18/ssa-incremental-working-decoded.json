@@ -1,0 +1,168 @@
+{
+  "source": "ssa-incremental-working-live-snapshot.pcapng",
+  "scope": "Tail after last observed MI010; snapshot of ongoing capture",
+  "records": [
+    {
+      "frame": 264,
+      "time": 391.634377,
+      "direction": "TX",
+      "hex": "4d493031300d",
+      "text": "MI010\r"
+    },
+    {
+      "frame": 266,
+      "time": 394.23741,
+      "direction": "TX",
+      "hex": "54",
+      "text": "T"
+    },
+    {
+      "frame": 270,
+      "time": 394.492358,
+      "direction": "RX",
+      "text": "D",
+      "record_hex": "440d"
+    },
+    {
+      "frame": 290,
+      "time": 394.679142,
+      "direction": "RX",
+      "text": "0000,0000",
+      "record_hex": "303030302c303030300d"
+    },
+    {
+      "frame": 310,
+      "time": 396.480499,
+      "direction": "RX",
+      "text": "0001,0057",
+      "record_hex": "303030312c303035370d"
+    },
+    {
+      "frame": 312,
+      "time": 399.440887,
+      "direction": "TX",
+      "hex": "54",
+      "text": "T"
+    },
+    {
+      "frame": 318,
+      "time": 399.707147,
+      "direction": "RX",
+      "text": "ID",
+      "record_hex": "49440d"
+    },
+    {
+      "frame": 338,
+      "time": 399.86132,
+      "direction": "RX",
+      "text": "0003,0132",
+      "record_hex": "303030332c303133320d"
+    },
+    {
+      "frame": 340,
+      "time": 401.041796,
+      "direction": "TX",
+      "hex": "54",
+      "text": "T"
+    },
+    {
+      "frame": 346,
+      "time": 401.31529,
+      "direction": "RX",
+      "text": "ID",
+      "record_hex": "49440d"
+    },
+    {
+      "frame": 366,
+      "time": 401.469472,
+      "direction": "RX",
+      "text": "0005,0176",
+      "record_hex": "303030352c303137360d"
+    },
+    {
+      "frame": 368,
+      "time": 402.443618,
+      "direction": "TX",
+      "hex": "54",
+      "text": "T"
+    },
+    {
+      "frame": 374,
+      "time": 402.701695,
+      "direction": "RX",
+      "text": "ID",
+      "record_hex": "49440d"
+    },
+    {
+      "frame": 394,
+      "time": 402.855916,
+      "direction": "RX",
+      "text": "0006,0214",
+      "record_hex": "303030362c303231340d"
+    },
+    {
+      "frame": 396,
+      "time": 404.045464,
+      "direction": "TX",
+      "hex": "54",
+      "text": "T"
+    },
+    {
+      "frame": 402,
+      "time": 404.309702,
+      "direction": "RX",
+      "text": "ID",
+      "record_hex": "49440d"
+    },
+    {
+      "frame": 422,
+      "time": 404.463898,
+      "direction": "RX",
+      "text": "0007,0249",
+      "record_hex": "303030372c303234390d"
+    },
+    {
+      "frame": 424,
+      "time": 405.846489,
+      "direction": "TX",
+      "hex": "54",
+      "text": "T"
+    },
+    {
+      "frame": 430,
+      "time": 406.139308,
+      "direction": "RX",
+      "text": "ID",
+      "record_hex": "49440d"
+    },
+    {
+      "frame": 450,
+      "time": 406.293516,
+      "direction": "RX",
+      "text": "0008,0286",
+      "record_hex": "303030382c303238360d"
+    },
+    {
+      "frame": 452,
+      "time": 407.850173,
+      "direction": "TX",
+      "hex": "54",
+      "text": "T"
+    },
+    {
+      "frame": 458,
+      "time": 408.146185,
+      "direction": "RX",
+      "text": "ID",
+      "record_hex": "49440d"
+    },
+    {
+      "frame": 478,
+      "time": 408.300357,
+      "direction": "RX",
+      "text": "0009,0320",
+      "record_hex": "303030392c303332300d"
+    }
+  ],
+  "incomplete_rx_hex": ""
+}

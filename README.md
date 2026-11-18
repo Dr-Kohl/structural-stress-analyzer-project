@@ -1,6 +1,6 @@
 # Structural Stress Analyzer Project
 
-A local workspace and diagnostic tools for replacing the Structural Stress Analyzer 1000 software. The browser workspace currently operates **offline only**. No replacement software has connected to or commanded the tester.
+A local workspace and diagnostic tools for replacing the Structural Stress Analyzer 1000 software. The browser workspace supports offline replay and an **experimental live Web Serial interface**. The separate Python investigator has communicated with the tester. Browser controls have been tested with simulated ports; live browser/hardware validation is still required.
 
 ## Open the workspace
 
@@ -8,7 +8,7 @@ Open the [browser workspace on GitHub Pages](https://dr-kohl.github.io/structura
 
 Double-click **index.html** in Microsoft Edge or Chrome. Keep the project folder together. No server, installation, internet connection, or build step is needed for the webpage.
 
-The familiar left column contains Settings, Test Config, Home, Start Test, Stop Test, Save Data, Disconnect, and Session details. **Home/Start/Stop/Disconnect are disabled**: the page has no serial API implementation or machine controls.
+The familiar left column contains Settings, Test Config, Home, Start Test, Stop request, Save Data, Disconnect, and Session details. Machine controls stay disabled until an explicit serial connection. **Stop request sends S; stopping behavior is unverified.** It does not replace physical power control.
 
 ### What works now
 
@@ -43,12 +43,31 @@ Imported data without timestamps use a clearly labeled paced replay; synthetic p
 
 All graph units are **inches and pounds**. Import does not perform unit conversion. The data are force/displacement, not specimen stress/strain. No calibration or material-property calculation is claimed.
 
+## Live instrument use (experimental)
+
+Use the hosted HTTPS page in desktop Chrome or Edge. Close SSA and disconnect Python first. Choose **Connection**, confirm readiness, SAE units, and preservation of the current recording, then select the Prolific adapter. Opening/closing the port can affect control signals and machine state. The user must be beside a clear tester with physical power control available.
+
+Connection uses 9600 8N1, no flow control, with explicit DTR/RTS preferences. It sends **zero startup commands**. No automatic homing, Start, reconnect, or retry occurs. Live mode hides the historical graph until actual live measurements arrive. Incoming `dddd,ffff` records are interpreted as inches/pounds only after the operator confirms SAE units. Timestamps are browser arrival times. Keep the instrument in SAE throughout the connection.
+
+- **Read version** sends bare `V`; observed reply `V4.0\r` is consistent with a version query.
+- **Home** sends bare `H` only after its own motion confirmation.
+- **Start Test** sends bare `T` only after its own motion confirmation. One Start is permitted per connection; download and reconnect for another test. The user explicitly authorized implementing T on November 18. No browser test has been started on hardware during implementation.
+- **Stop request** sends bare `S`. An idle `S\r` reply has been observed; stopping actual motion is **not verified**. A request or reply must never be presented as proof that the machine stopped.
+- **Select Continuous** and **Select Incremental only** send bare `C` / `I`. These request the observed mode selections only; they do not apply any numeric fields. No MI020, cyclic command, jog command, calibration command, or guessed parameters are sent.
+- **Test Config remains a local draft.** Global maximum force, incremental force, cyclic force and cycle count are not applied or enforced by this page. Start uses the instrument's current settings, which the browser cannot verify.
+
+Live data and exact RX/TX-attempt/result events are retained in browser recovery. **Download live log** preserves a JSONL file even if no measurements arrive; check the browser download completed. Recovery is not a durable disk-write guarantee. A logging failure or a read/write error closes the connection without retry; physical motion may continue. The browser warns before unloading a connected page, but cannot guarantee that a tab or computer stays open.
+
+When disconnected, choose **Review recording** to use replay/import controls again. Complete-session, CSV, raw evidence and chart exports work with received measurements; the complete live log retains nonmeasurement replies and unfinished byte tails. A recovered log can be downloaded on the next visit without opening hardware. New connections require the device picker and readiness checks again. A new browser profile/device does not share recovery.
+
+The live recorder limits a connection to 2 MB of raw incoming bytes, 100,000 readings and 4 KB of pending unterminated text. Browser storage may fill sooner; save sessions regularly. HTTP requests do not upload imported/live measurements; communication goes through the operator-selected local serial port.
+
 ## Verification
 
 Data/model tests need Node.js:
 
 ```powershell
-node --test tests/model.test.cjs tests/workspace.test.cjs
+node --test tests/model.test.cjs tests/workspace.test.cjs tests/live.test.cjs
 node --check app.js
 ```
 
@@ -58,6 +77,7 @@ An optional end-to-end check uses Playwright and a fresh **headless** Edge profi
 
 ```powershell
 node tests/browser-check.cjs
+node tests/live-browser-check.cjs
 ```
 
 Playwright must be available through normal module resolution or `NODE_PATH`; `SSA_BROWSER_PATH` can override the default Windows Edge executable. Browser checks cover dialogs, draft fields, recovery/reload, all graph/session exports, imports and malformed files, replay completion, storage/save failures, corrupted recovery preservation, and 1366/768/375/320 px layouts. They reject instrument API access and check for external HTTP requests. Screenshots and downloaded checks go under ignored `work/browser-check/`.
@@ -74,11 +94,11 @@ pySerial 3.5 is installed in the ignored project `.venv` environment. Nine hardw
 .venv\Scripts\python.exe -m unittest discover -s tests -p test_probe.py -v
 ```
 
-Transient logs go under ignored `sessions/`. After an informative experiment, inspect, copy, hash and commit selected logs into a new evidence session. The Python console has not yet been tested against this instrument.
+Transient logs go under ignored `sessions/`. After an informative experiment, inspect, copy, hash and commit selected logs into a new evidence session. The Python console was exercised against the real instrument on November 18; see the new evidence and findings below.
 
 ## Preserved evidence and current findings
 
-See [evidence/2026-11-17](evidence/2026-11-17/) and [the next-session handoff](docs/next-session.txt).
+See [the original evidence](evidence/2026-11-17/), [November 18 Python findings](evidence/2026-11-18/first-live-python-investigation.txt), [the idle Stop capture attempt](evidence/2026-11-18/idle-stop-attempt.txt), and [the next-session handoff](docs/next-session.txt).
 
 - Original startup capture (353 packets) and sample-break capture (2,913 packets, zero reported drops).
 - All 144 reconstructed readings, exact test serial streams, packet exports, original screenshots, and SHA-256 manifests.
@@ -96,7 +116,7 @@ Observed connection: Prolific USB serial adapter (COM4 during capture, VID 067B 
 
 **Unresolved:** no serial replies appeared after MI020. Attempts at 25/26 only sent I; MI025 and MI026 were never captured. The final C was unacknowledged. Closing SSA and power-cycling the tester restored H → H + CR, without establishing the cause. Global 450/500 changes only sent C; ownership/enforcement of the limit remains unverified. Stop/abort, cyclic commands, calibration and full command semantics remain unknown.
 
-The [final webpage plan](docs/final-webpage-plan.txt) describes the intended live interface. The familiar offline layout is now implemented; live connection/configuration and machine actions still require individual verification with the operator present. No hardware access is needed to continue work on offline features.
+The [final webpage plan](docs/final-webpage-plan.txt) describes the intended live interface. The familiar layout and experimental Web Serial implementation are now present; browser connection and machine actions still require hardware validation with the operator present. Numeric live configuration remains unavailable. No hardware access is needed to continue work on offline features.
 
 ## Local Git and public release
 

@@ -1,0 +1,9 @@
+First live Python investigator session — November 18, 2026
+
+This is a snapshot of an ACTIVE session, not a finalized recording. The original log continues in sessions/ssa-live-20261118T122414.256621Z.jsonl; preserve the final log when disconnected.
+Connection: COM4, 9600 8N1, DTR/RTS true. Opened with zero startup bytes sent.
+Observed TX sequence: h, H, ?, H, A, B, H, C. All were single bytes without a terminator.
+Each of three uppercase H sends received 48 0d (H + CR). Lowercase h, ?, A and B had no received bytes logged before the next send. Silence does not establish that a byte is harmless or unrecognized.
+C received 43 0d (C + CR), consistent with the prior Continuous-selection exchange. This does not verify force-limit enforcement or all device settings.
+Operator reports the mechanism was already home and did not move for H. No T was sent in this snapshot.
+Do not infer safe behavior for other letters or conduct an automatic sweep.

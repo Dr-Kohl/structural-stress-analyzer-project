@@ -1,0 +1,22 @@
+First live Python command investigation — November 18, 2026
+
+Source: ssa-live-python-letter-pass-snapshot.jsonl, a complete-line snapshot of the still-active original sessions/ssa-live-20261118T122414.256621Z.jsonl. Preserve the finalized log after disconnecting. No further writes were performed by this preservation step.
+Connection: COM4, 9600 8N1; DTR and RTS asserted; no flow control. Port opening sent no startup bytes. All transmitted messages in this snapshot are individual ASCII bytes, without terminators. T was not sent.
+
+Repeatable responding exchanges
+H -> H<CR> on multiple occasions, including the last send after Z. Prior evidence associates H with homing; operator reports no movement while already home.
+C -> C<CR> twice. Prior SSA capture associates this with Continuous selection. The idle display did not change; acceptance/enforcement of mode and limits is not established.
+I -> I<CR> three later times. Earlier I had no immediate reply. Prior SSA capture associates I with Incremental selection. No MI020 parameter was sent today.
+S -> S<CR> once while idle. Operator reports no movement. Stop is a hypothesis, not a verified function; no active-motion stop test occurred.
+V -> V4.0<CR> once. A firmware-version query is a strong inference, not independently documented.
+
+No received bytes occurred between each of these sends and the following send: h, ?, A, B, D, E, F, G, J, K, L, M, N, P, O, Q, R, U, W, X, Y, Z. This is NOT proof of harmlessness, unimplemented commands, or parser independence. Multi-byte prefixes may consume later input. This alphabet pass does not establish that the full command set is small.
+
+Anomaly and reset
+An early I was followed by D,E,F,G,H. About 39.8 seconds after that H, incoming I appeared, then a NUL about 3.5 seconds later, without a CR. Attribution is unresolved; do not assign these to H as a clean request/reply. A later H received H<CR> normally. Operator reports a power cycle/reset during this investigation, but exact reset time is not logged. No physical state transition should be inferred solely from byte timing.
+
+Front panel
+Operator browsed Select menus and changed SAE to metric then back to SAE; no received bytes were observed for those actions. Panel includes mode/settings Select/Set and a momentary Start cycle button; no dedicated jog or Stop button was identified. A Stop mode setting exists but its meaning is not established by this session.
+
+Result and next work
+Replacement Python communication has now been exercised on the real instrument. Exact replies above are established; inferred meanings remain labeled. No test was started by this console and no replacement stop or jog control is verified. Review source/manuals or separately capture known original-software actions to identify multi-byte syntax and Stop behavior. Do not automatically repeat MI020, start T, or infer safe motion from lack of response. No webpage hardware controls were enabled.

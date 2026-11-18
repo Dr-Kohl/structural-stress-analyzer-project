@@ -1,0 +1,85 @@
+(function(){
+'use strict';
+const $=id=>document.getElementById(id),KEY='ssa.live.recovery.v1';
+let live=null,opening=false,pendingCommand=null,renderTimer=null,lastSampleCount=0,lastEntryCount=0,recovered='';
+try{recovered=localStorage.getItem(KEY)||'';}catch{}
+const download=(value,name,type='application/x-ndjson')=>{
+ const url=URL.createObjectURL(new Blob([value],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+};
+function render(){
+ if(!live)return;
+ const connected=live.phase==='connected',free=connected&&!live.busy&&!live.closing;
+ $('live-panel').hidden=false;$('live-phase').textContent=live.phase;
+ $('rail-connection').textContent=connected?'Serial port open':live.phase==='connecting'?'Connecting':'No device connected';
+ $('rail-machine').textContent=live.machine;$('live-status').textContent=live.error?live.error+' Connection state is unknown; physical motion may continue.':live.machine;
+ $('live-version').textContent=live.version||'Not queried';$('live-last').textContent=live.lastReceived?new Date(live.lastReceived).toLocaleTimeString():'No received bytes';
+ $('live-bytes').textContent='TX '+live.txHex.length/2+' · RX '+live.rxHex.length/2;
+ $('connection').disabled=opening||!['disconnected','fault'].includes(live.phase);
+ $('disconnect').disabled=!connected||live.busy;
+ $('machine-home').disabled=!free||live.starting;$('machine-start').disabled=!free||live.testIssued;
+ $('machine-stop').disabled=!free;$('machine-stop').title='Send S once. Stopping behavior is unverified.';
+ $('live-version-query').disabled=!free;
+ for(const id of ['live-continuous','live-incremental'])$(id).disabled=!free||live.starting;
+ $('live-review').disabled=!['disconnected','fault'].includes(live.phase);
+ $('machine-help').textContent=connected?'Research controls. Stop request is unverified; physical power remains the fallback. Draft limits are not applied.':'Machine state unknown. Connect deliberately; no automatic Home or Start.';
+ $('live-transcript').textContent=live.entries.slice(-60).map(e=>Number(e.elapsed_s).toFixed(3)+' '+e.event+(e.text!==undefined?' '+e.text:'')+(e.message?' '+e.message:'')).join('\n');
+ $('live-recovered-log').hidden=!recovered;
+ if(live.samples.length&&(lastSampleCount!==live.samples.length||lastEntryCount!==live.entries.length)){lastSampleCount=live.samples.length;lastEntryCount=live.entries.length;window.SSAView.receiveLive(live);}
+}
+function update(){if(!renderTimer)renderTimer=setTimeout(()=>{renderTimer=null;render();},80);}
+async function issue(command,motionConfirmed=false){
+ try{await live.send(command,{motionConfirmed});}
+ catch(error){$('live-log-status').textContent=error.message;}
+ render();
+}
+$('live-connect').addEventListener('click',async()=>{
+ if(opening)return;
+ const error=$('live-connect-error');error.hidden=true;
+ if(!['live-ready','live-units','live-data-ready'].every(id=>$(id).checked)){error.textContent='Confirm readiness, SAE units and preservation of the current recording before connecting.';error.hidden=false;return;}
+ if(!window.isSecureContext||!('serial' in navigator)){error.textContent='Web Serial requires Chrome or Edge on a secure page (HTTPS or localhost).';error.hidden=false;return;}
+ opening=true;$('live-connect').disabled=true;
+ try{
+  // A fresh device picker is required for every connection. Never auto-reconnect.
+  const port=await navigator.serial.requestPort({filters:[{usbVendorId:0x067b,usbProductId:0x23a3}]});
+  if(live?.entries.length)recovered=live.log();
+  // Test storage BEFORE opening the physical port. Do not silently overwrite the previous recovery.
+  if(recovered)localStorage.setItem(KEY+'.previous',recovered);
+  localStorage.setItem(KEY,'');
+  live=new SSALive.LiveSession({save:log=>{localStorage.setItem(KEY,log);$('live-log-status').textContent='Browser recovery updated; download the live log for a portable copy. Recovery is not a disk-write guarantee.';},onUpdate:update});
+  lastSampleCount=0;lastEntryCount=0;window.SSAView.beginLive();$('connection-dialog').close();
+  await live.connect(port,{dtr:$('live-dtr').checked,rts:$('live-rts').checked});
+ }catch(e){
+  if(e.name!=='NotFoundError'&&e.name!=='AbortError'){error.textContent=e.message;error.hidden=false;$('live-log-status').textContent='Connection failed: '+e.message;}
+ }finally{opening=false;$('live-connect').disabled=false;if(live)render();}
+});
+$('disconnect').addEventListener('click',async()=>{if(!live||live.busy)return;await live.disconnect();render();});
+$('live-review').addEventListener('click',()=>{window.SSAView.finishLive(live);$('live-review').disabled=true;});
+$('live-version-query').addEventListener('click',()=>issue('V'));
+$('live-continuous').addEventListener('click',()=>issue('C'));
+$('live-incremental').addEventListener('click',()=>issue('I'));
+$('machine-stop').addEventListener('click',()=>issue('S'));
+function confirmMotion(command){
+ if(!live||live.phase!=='connected'||live.busy||live.starting)return;
+ pendingCommand=command;$('motion-title').textContent=command==='H'?'Request Home':'Start a physical test';
+ $('motion-description').textContent=command==='H'?'Send H once. The mechanism may move toward home. No automatic follow-up command is sent.':'Send T once. The tester may pull the specimen to failure using its current instrument settings. This does not apply the webpage’s configuration draft. Save or download this session before any destructive test.';
+ $('motion-ready').checked=false;$('motion-send').disabled=true;$('motion-dialog').showModal();
+}
+$('machine-home').addEventListener('click',()=>confirmMotion('H'));
+$('machine-start').addEventListener('click',()=>confirmMotion('T'));
+$('motion-ready').addEventListener('change',()=>{$('motion-send').disabled=!$('motion-ready').checked;});
+$('motion-send').addEventListener('click',()=>{
+ if(!$('motion-ready').checked||!pendingCommand)return;
+ const command=pendingCommand;pendingCommand=null;$('motion-dialog').close();issue(command,true);
+});
+$('motion-dialog').addEventListener('close',()=>{pendingCommand=null;$('motion-ready').checked=false;});
+$('live-save-log').addEventListener('click',()=>{
+ if(!live)return;download(live.log(),'ssa-browser-live-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jsonl');
+ $('live-log-status').textContent='Live log download requested. Check your browser downloads; the connection is unchanged.';
+});
+try{recovered=localStorage.getItem(KEY)||localStorage.getItem(KEY+'.previous')||'';}catch{}
+if(recovered){$('live-panel').hidden=false;$('live-recovered-log').hidden=false;$('live-log-status').textContent='A previous live log is recoverable. Download it before replacing browser data. No device is connected.';}
+$('live-recovered-log').addEventListener('click',()=>download(recovered,'ssa-browser-recovered.jsonl'));
+window.addEventListener('beforeunload',event=>{
+ if(live&&['connected','connecting','disconnecting'].includes(live.phase)){event.preventDefault();event.returnValue='';}
+});
+})();

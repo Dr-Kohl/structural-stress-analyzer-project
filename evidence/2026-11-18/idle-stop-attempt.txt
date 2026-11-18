@@ -1,0 +1,9 @@
+Idle Stop capture attempt — November 18, 2026
+
+Capture: ssa-idle-stop-capture.pcap; 21 packets, 1075 bytes. USBPcap1 device address 3, matching the Prolific adapter. Six injected descriptors/configuration packets precede USB control/status traffic and canceled pending reads near application closure. No outgoing serial bulk payload and no incoming serial measurement/command payload appear. The nonempty interrupt endpoint 0x81 carries adapter status, not tester serial text. Drop statistics are unavailable; do not claim zero drops.
+
+Operator clicked Stop Test once while SSA showed At Home and no test was active. SSA displayed error 8 in Open/Create/Replace File in SSA File Create.vi -> SSA Main V_1.vi, referencing a CSV directly under C:\. This resembles the prior root-folder export failure. It does not establish whether a stop function succeeded or failed internally. No S command was recorded. Idle Stop may follow a different code path than active Stop, and an application error or connection state may affect behavior. S remains an unverified Stop hypothesis.
+
+The capture helper spawned an elevated child that held the file exclusively. The parent was stopped, but file access required the operator to end USBPcapCMD PID 20664 in Task Manager. File readability and packet contents were verified only after that process exited. Earlier statements about capture contents before this read were not verified. Python was disconnected before SSA opened and remains disconnected. No Start/Test was requested in this attempt.
+
+Possible next step: correct SSA data-folder selection to an ordinary writable user directory and, if the operator wishes, repeat a controlled idle Stop capture. Absence of a serial command while idle will still not verify active Stop semantics. Do not start motion solely to test an unverified stop command.

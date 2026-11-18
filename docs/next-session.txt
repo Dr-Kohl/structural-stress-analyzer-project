@@ -1,3 +1,16 @@
+CURRENT UPDATE — November 18, 2026 — experimental browser serial implementation
+The user explicitly requested a live webpage and explicitly authorized implementing T (test start) behind a deliberate user confirmation. This supersedes the earlier blanket T-blocked implementation scope for the browser. The Python investigator itself remains unchanged and still blocks T.
+Web Serial connects only through a device picker and readiness/SAE checks, sends no startup bytes, and does not auto-reconnect or retry. Home H and Start T have separate motion confirmations. Start is limited to one per connection. Stop request sends S, prominently unverified. Version V and bare C/I selections are provided; no numeric configuration, cyclic, jog or calibration commands are guessed. Draft settings are never applied/enforced by the browser.
+Live plotting, exact-byte JSONL download/browser recovery, measurement/session/graph exports and disconnect/review are implemented. Browser controls must be validated on real hardware; implementation/testing did not open the instrument port or send commands. SSA should remain closed and Python disconnected before the browser chooses COM4.
+Validation: 22 model/data/serial tests passed (13 existing + 9 new); the existing offline browser workflow passed, and the simulated-live browser workflow passed at widths 1366/768/375/320. No hardware port was opened by the test scripts.
+Read README for current instructions. Live serial module tests and a mock-port browser workflow test are in tests/live.test.cjs and tests/live-browser-check.cjs. No instrument is used by those tests.
+
+Today's hardware investigation
+The finalized Python log is evidence/2026-11-18/ssa-first-live-python-complete.jsonl with SHA-256. It contains 35 TX bytes, 27 RX bytes, 101 events. Findings: H -> H<CR>; C -> C<CR>; I -> I<CR> (one earlier anomaly); S -> S<CR> while idle, meaning unverified; V -> V4.0<CR>, likely version. Most remaining letters had no immediate reply, which is not proof they are unused. See first-live-python-investigation.txt for the delayed I/NUL anomaly and reset caveat. No T was sent in that Python log.
+The idle original-SSA Stop attempt produced CSV file-creation error 8 for a file directly in C:\. The saved 21-packet capture contains no serial command bytes; it does not establish Stop semantics. Recorder child PID 20664 had to be ended by the operator due to elevated privileges/exclusive file access. It is gone; capture is readable and hashed. Do not repeat earlier premature claims about its contents. The helper with PID 13864 may still exist as an unused enumeration console; do not assume it is recording. Do not install or elevate capture tools without a concrete need and authorization.
+
+All earlier handoffs below are historical. Their statements that no replacement software connected, no browser serial API exists, or T is categorically unavailable in the browser are superseded by this update. No verified active Stop, numeric limit enforcement, cyclic command syntax, or jog support has been established.
+
 CURRENT HANDOFF — November 17, 2026 — GitHub Pages live; resume Python tester at machine
 Project folder: C:\Users\Dr_Kohl\Documents\Codex\2026-11-17\r\outputs\structural-stress-analyzer-project
 Browser workspace: https://dr-kohl.github.io/structural-stress-analyzer-project/

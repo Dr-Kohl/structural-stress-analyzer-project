@@ -1,0 +1,5 @@
+November 18, 2026 — idle S response
+
+Live Python log records TX 53 (uppercase S, no terminator), followed by RX 53 0d (S + CR). The operator reports the tester was idle, with no movement observed. S is a responding byte in this context; meaning Stop remains an unverified hypothesis. No active-motion stop test has been performed. Do not enable or label a functional software Stop control on this evidence alone.
+
+This snapshot is from an active session. Preserve its final log after disconnecting. User also reports power-cycling the tester before the later I exchange; exact reset time was not recorded in the serial log. Earlier front-panel Select browsing and SAE/metric/SAE changes produced no operator-observed serial output.

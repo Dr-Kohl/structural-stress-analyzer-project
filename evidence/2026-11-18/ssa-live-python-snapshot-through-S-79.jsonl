@@ -1,0 +1,79 @@
+{"utc": "2026-11-18T12:24:14.256+00:00", "elapsed_s": 0.0, "event": "session", "kind": "live", "port": "COM4", "baud": 9600, "data_bits": 8, "parity": "none", "stop_bits": 1, "dtr": true, "rts": true, "xonxoff": false, "rtscts": false, "dsrdtr": false}
+{"utc": "2026-11-18T12:24:14.256+00:00", "elapsed_s": 0.0, "event": "open_attempt"}
+{"utc": "2026-11-18T12:24:14.341+00:00", "elapsed_s": 0.078, "event": "opened", "startup_bytes_sent": 0}
+{"utc": "2026-11-18T12:24:39.708+00:00", "elapsed_s": 25.453, "event": "tx_attempt", "hex": "68", "text": "h", "byte_count": 1}
+{"utc": "2026-11-18T12:24:39.708+00:00", "elapsed_s": 25.453, "event": "tx_result", "hex": "68", "text": "h", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:24:48.742+00:00", "elapsed_s": 34.484, "event": "tx_attempt", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:24:48.742+00:00", "elapsed_s": 34.484, "event": "tx_result", "hex": "48", "text": "H", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:24:48.817+00:00", "elapsed_s": 34.563, "event": "rx", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:24:48.817+00:00", "elapsed_s": 34.563, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:26:32.967+00:00", "elapsed_s": 138.703, "event": "tx_attempt", "hex": "3f", "text": "?", "byte_count": 1}
+{"utc": "2026-11-18T12:26:32.967+00:00", "elapsed_s": 138.703, "event": "tx_result", "hex": "3f", "text": "?", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:26:41.630+00:00", "elapsed_s": 147.375, "event": "tx_attempt", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:26:41.630+00:00", "elapsed_s": 147.375, "event": "tx_result", "hex": "48", "text": "H", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:26:41.708+00:00", "elapsed_s": 147.453, "event": "rx", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:26:41.710+00:00", "elapsed_s": 147.453, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:27:00.125+00:00", "elapsed_s": 165.859, "event": "tx_attempt", "hex": "41", "text": "A", "byte_count": 1}
+{"utc": "2026-11-18T12:27:00.128+00:00", "elapsed_s": 165.875, "event": "tx_result", "hex": "41", "text": "A", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:27:05.301+00:00", "elapsed_s": 171.047, "event": "tx_attempt", "hex": "42", "text": "B", "byte_count": 1}
+{"utc": "2026-11-18T12:27:05.301+00:00", "elapsed_s": 171.047, "event": "tx_result", "hex": "42", "text": "B", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:27:10.667+00:00", "elapsed_s": 176.406, "event": "tx_attempt", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:27:10.667+00:00", "elapsed_s": 176.406, "event": "tx_result", "hex": "48", "text": "H", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:27:10.748+00:00", "elapsed_s": 176.484, "event": "rx", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:27:10.748+00:00", "elapsed_s": 176.484, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:27:22.144+00:00", "elapsed_s": 187.891, "event": "tx_attempt", "hex": "43", "text": "C", "byte_count": 1}
+{"utc": "2026-11-18T12:27:22.145+00:00", "elapsed_s": 187.891, "event": "tx_result", "hex": "43", "text": "C", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:27:22.145+00:00", "elapsed_s": 187.891, "event": "rx", "hex": "43", "text": "C", "byte_count": 1}
+{"utc": "2026-11-18T12:27:22.145+00:00", "elapsed_s": 187.891, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:35:09.440+00:00", "elapsed_s": 655.188, "event": "tx_attempt", "hex": "49", "text": "I", "byte_count": 1}
+{"utc": "2026-11-18T12:35:09.440+00:00", "elapsed_s": 655.188, "event": "tx_result", "hex": "49", "text": "I", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:35:16.988+00:00", "elapsed_s": 662.734, "event": "tx_attempt", "hex": "44", "text": "D", "byte_count": 1}
+{"utc": "2026-11-18T12:35:16.988+00:00", "elapsed_s": 662.734, "event": "tx_result", "hex": "44", "text": "D", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:35:22.619+00:00", "elapsed_s": 668.359, "event": "tx_attempt", "hex": "45", "text": "E", "byte_count": 1}
+{"utc": "2026-11-18T12:35:22.619+00:00", "elapsed_s": 668.359, "event": "tx_result", "hex": "45", "text": "E", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:35:27.325+00:00", "elapsed_s": 673.063, "event": "tx_attempt", "hex": "46", "text": "F", "byte_count": 1}
+{"utc": "2026-11-18T12:35:27.325+00:00", "elapsed_s": 673.063, "event": "tx_result", "hex": "46", "text": "F", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:35:31.714+00:00", "elapsed_s": 677.453, "event": "tx_attempt", "hex": "47", "text": "G", "byte_count": 1}
+{"utc": "2026-11-18T12:35:31.714+00:00", "elapsed_s": 677.453, "event": "tx_result", "hex": "47", "text": "G", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:35:37.444+00:00", "elapsed_s": 683.188, "event": "tx_attempt", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:35:37.444+00:00", "elapsed_s": 683.188, "event": "tx_result", "hex": "48", "text": "H", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:36:17.237+00:00", "elapsed_s": 722.984, "event": "rx", "hex": "49", "text": "I", "byte_count": 1}
+{"utc": "2026-11-18T12:36:20.710+00:00", "elapsed_s": 726.453, "event": "rx", "hex": "00", "text": "\\x00", "byte_count": 1}
+{"utc": "2026-11-18T12:36:40.707+00:00", "elapsed_s": 746.453, "event": "tx_attempt", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:36:40.707+00:00", "elapsed_s": 746.453, "event": "tx_result", "hex": "48", "text": "H", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:36:40.779+00:00", "elapsed_s": 746.516, "event": "rx", "hex": "48", "text": "H", "byte_count": 1}
+{"utc": "2026-11-18T12:36:40.779+00:00", "elapsed_s": 746.516, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:36:50.727+00:00", "elapsed_s": 756.469, "event": "tx_attempt", "hex": "49", "text": "I", "byte_count": 1}
+{"utc": "2026-11-18T12:36:50.727+00:00", "elapsed_s": 756.469, "event": "tx_result", "hex": "49", "text": "I", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:36:50.729+00:00", "elapsed_s": 756.469, "event": "rx", "hex": "49", "text": "I", "byte_count": 1}
+{"utc": "2026-11-18T12:36:50.730+00:00", "elapsed_s": 756.469, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:38:18.954+00:00", "elapsed_s": 844.688, "event": "tx_attempt", "hex": "43", "text": "C", "byte_count": 1}
+{"utc": "2026-11-18T12:38:18.954+00:00", "elapsed_s": 844.688, "event": "tx_result", "hex": "43", "text": "C", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:38:18.956+00:00", "elapsed_s": 844.703, "event": "rx", "hex": "43", "text": "C", "byte_count": 1}
+{"utc": "2026-11-18T12:38:18.958+00:00", "elapsed_s": 844.703, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:39:55.319+00:00", "elapsed_s": 941.063, "event": "tx_attempt", "hex": "49", "text": "I", "byte_count": 1}
+{"utc": "2026-11-18T12:39:55.319+00:00", "elapsed_s": 941.063, "event": "tx_result", "hex": "49", "text": "I", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:39:55.320+00:00", "elapsed_s": 941.063, "event": "rx", "hex": "49", "text": "I", "byte_count": 1}
+{"utc": "2026-11-18T12:39:55.320+00:00", "elapsed_s": 941.063, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}
+{"utc": "2026-11-18T12:43:56.303+00:00", "elapsed_s": 1182.016, "event": "tx_attempt", "hex": "4a", "text": "J", "byte_count": 1}
+{"utc": "2026-11-18T12:43:56.304+00:00", "elapsed_s": 1182.016, "event": "tx_result", "hex": "4a", "text": "J", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:44:38.409+00:00", "elapsed_s": 1224.109, "event": "tx_attempt", "hex": "4b", "text": "K", "byte_count": 1}
+{"utc": "2026-11-18T12:44:38.411+00:00", "elapsed_s": 1224.109, "event": "tx_result", "hex": "4b", "text": "K", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:06.864+00:00", "elapsed_s": 1252.563, "event": "tx_attempt", "hex": "4c", "text": "L", "byte_count": 1}
+{"utc": "2026-11-18T12:45:06.868+00:00", "elapsed_s": 1252.563, "event": "tx_result", "hex": "4c", "text": "L", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:10.946+00:00", "elapsed_s": 1256.641, "event": "tx_attempt", "hex": "4d", "text": "M", "byte_count": 1}
+{"utc": "2026-11-18T12:45:10.946+00:00", "elapsed_s": 1256.641, "event": "tx_result", "hex": "4d", "text": "M", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:15.213+00:00", "elapsed_s": 1260.906, "event": "tx_attempt", "hex": "4e", "text": "N", "byte_count": 1}
+{"utc": "2026-11-18T12:45:15.213+00:00", "elapsed_s": 1260.906, "event": "tx_result", "hex": "4e", "text": "N", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:20.568+00:00", "elapsed_s": 1266.266, "event": "tx_attempt", "hex": "50", "text": "P", "byte_count": 1}
+{"utc": "2026-11-18T12:45:20.568+00:00", "elapsed_s": 1266.266, "event": "tx_result", "hex": "50", "text": "P", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:34.687+00:00", "elapsed_s": 1280.375, "event": "tx_attempt", "hex": "4f", "text": "O", "byte_count": 1}
+{"utc": "2026-11-18T12:45:34.687+00:00", "elapsed_s": 1280.375, "event": "tx_result", "hex": "4f", "text": "O", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:40.804+00:00", "elapsed_s": 1286.5, "event": "tx_attempt", "hex": "51", "text": "Q", "byte_count": 1}
+{"utc": "2026-11-18T12:45:40.804+00:00", "elapsed_s": 1286.5, "event": "tx_result", "hex": "51", "text": "Q", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:44.445+00:00", "elapsed_s": 1290.141, "event": "tx_attempt", "hex": "52", "text": "R", "byte_count": 1}
+{"utc": "2026-11-18T12:45:44.445+00:00", "elapsed_s": 1290.141, "event": "tx_result", "hex": "52", "text": "R", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:48.477+00:00", "elapsed_s": 1294.172, "event": "tx_attempt", "hex": "53", "text": "S", "byte_count": 1}
+{"utc": "2026-11-18T12:45:48.477+00:00", "elapsed_s": 1294.172, "event": "tx_result", "hex": "53", "text": "S", "byte_count": 1, "requested_bytes": 1, "reported_written": 1, "acknowledged_by_tester": false}
+{"utc": "2026-11-18T12:45:48.486+00:00", "elapsed_s": 1294.172, "event": "rx", "hex": "53", "text": "S", "byte_count": 1}
+{"utc": "2026-11-18T12:45:48.487+00:00", "elapsed_s": 1294.188, "event": "rx", "hex": "0d", "text": "\\r", "byte_count": 1}

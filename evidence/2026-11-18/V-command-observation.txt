@@ -1,0 +1,1 @@
+November 18, 2026: TX uppercase V, hex 56, no terminator. RX 56 34 2e 30 0d, ASCII V4.0 followed by CR. This is consistent with a firmware version query, but the meaning is inferred rather than independently documented. The immediately preceding U had no logged reply before V was sent. Snapshot from an active session; preserve final recording on disconnect.

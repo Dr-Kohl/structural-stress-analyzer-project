@@ -1,3 +1,6 @@
+Implementation status — November 18, 2026
+An experimental Web Serial interface now implements deliberate listening-first connection, live plotting/logging/export, confirmed H and T sends, bare C/I selections and V query. S is exposed only as an unverified Stop request. Numeric settings, Cyclic and jog remain unavailable. Browser validation has used simulated ports only. See README and the latest handoff for current behavior; the design and earlier evidence gates below describe the staged plan.
+
 Final webpage plan — draft for review, November 17, 2026
 
 Design direction

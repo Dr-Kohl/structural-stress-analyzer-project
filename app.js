@@ -3,6 +3,7 @@
 const $=id=>document.getElementById(id),W=window.SSAWorkspace,M=window.SSAModel;
 const NS='http://www.w3.org/2000/svg',RECOVERY_KEY='ssa.workspace.v1';
 let session,summary,clock,index=0,playing=false,replayTime=0,lastClock=0,speed=1,hoverIndex=null,axes=null,recoveryBlocked=false;
+let liveActive=false,liveHasData=false;
 const svg=$('chart');
 function notify(title,body='',error=false){$('notice-title').textContent=title;$('notice-body').textContent=body;$('notice').classList.toggle('error',error);$('notice').hidden=false;}
 function activity(message){session.activity.push({utc:new Date().toISOString(),message});session.activity=session.activity.slice(-1000);}
@@ -34,6 +35,7 @@ function axisNumber(n,step){if(Math.abs(n)<Math.abs(step)/100)return '0';if(Math
 function node(tag,attrs={},text){const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;return e;}
 function draw(){
  if(!session)return;
+ if(liveActive&&!liveHasData){svg.replaceChildren();axes=null;return;}
  const width=Math.max(240,svg.clientWidth||750),height=svg.clientHeight||350;
  const left=54,right=20,top=35,bottom=height-47,w=width-left-right,h=bottom-top;
  const view=W.bounds(session.samples,$('tail').checked);
@@ -81,12 +83,19 @@ function draw(){
  }
 }
 function update(){
+ if(liveActive&&!liveHasData){
+  for(const id of ['force','displacement','peak'])$(id).textContent='—';
+  $('count').textContent='0';$('count-total').textContent='/ live';$('sample-label').textContent='No live readings';
+  $('state').textContent='Connected session — awaiting live measurements';$('time').textContent='No live measurement received';
+  $('jump-peak').textContent='No live peak yet';draw();return;
+ }
  const selected=session.samples[hoverIndex===null?index:hoverIndex];
  $('force').textContent=number(selected.force_lb);$('displacement').textContent=position(selected.displacement_in);
  $('count').textContent=index+1;$('sample-label').textContent=(index+1)+' of '+session.samples.length;$('scrub').value=index+1;
  $('time').textContent=clock.timed?clock.times[index].toFixed(2)+' s from first reading':'No receive timestamps';
  $('play').textContent=playing?'Ⅱ Pause replay':index===session.samples.length-1?'▶ Replay test':'▶ Play replay';
  $('state').textContent=playing?'Playing captured data':index===session.samples.length-1?'Complete recording':'Paused · reading '+(index+1);
+ if(liveActive){$('state').textContent='Live recording · device state shown above';$('time').textContent='Last measurement arrival: '+session.samples.at(-1).time_s.toFixed(2)+' s';}
  $('inspection').textContent=hoverIndex!==null?
   'Reading '+(hoverIndex+1)+' · '+number(selected.force_lb)+' lb at '+position(selected.displacement_in)+' in':
   !$('tail').checked&&index>summary.tailStart?'Cursor is in the hidden zero-force tail':'Hover or use the reading slider to inspect';
@@ -154,7 +163,7 @@ $('diagnostics').addEventListener('click',()=>{
  const values={Source:session.source.name,Readings:session.samples.length,'Peak force':number(summary.peak.force_lb)+' lb at '+position(summary.peak.displacement_in)+' in',
   Timing:clock.timed?session.source.timing:'Not supplied; paced replay only',Duration:clock.timed?clock.duration.toFixed(3)+' s':'Unknown',
   'Raw receive bytes':session.raw.rxHex.length/2,'Raw transmit bytes':session.raw.txHex.length/2,'Raw provenance':session.raw.kind,
-  'Machine connection':'None — offline workspace','Configuration':'Local draft only; not acknowledged by any device'};
+  'Machine connection':liveActive?'Live research session — see instrument status above':'None — offline workspace','Configuration':'Local draft only; not acknowledged by any device'};
  for(const[k,v]of Object.entries(values)){const row=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;row.append(dt,dd);details.append(row);}
  const list=$('activity-list');list.replaceChildren();
  for(const entry of session.activity.slice(-25).reverse()){const li=document.createElement('li');li.textContent=entry.utc+' — '+entry.message;list.append(li);}
@@ -232,6 +241,44 @@ function animate(now){
  }
  requestAnimationFrame(animate);
 }
+window.SSAView={
+ beginLive(){
+  pause();liveActive=true;liveHasData=false;
+  // Copy the displayed session before changes; the original fixture is never mutated.
+  session=W.makeSession(session.samples,session);
+  for(const id of ['open-data','restore-capture','play','reset','speed','scrub','fit','jump-peak','fault-preview'])$(id).disabled=true;
+  document.querySelectorAll('[data-export]').forEach(b=>b.disabled=true);
+  $('workspace-mode').textContent='Live research';$('recording-date').textContent='LIVE SESSION · WAITING FOR DATA';
+  document.querySelector('.metrics article:nth-child(1) > span').textContent='Last received force';
+  document.querySelector('.metrics article:nth-child(2) > span').textContent='Last received displacement';
+  $('session-title').textContent='Live instrument session';$('source-label').textContent='Previous graph hidden — awaiting this connection’s measurements';
+  $('recording-note').textContent='SAE units must be selected on the tester. Machine settings and limits are not verified by this page.';
+  $('fault-banner').hidden=true;update();
+ },
+ receiveLive(live){
+  if(!liveActive||!live.samples.length)return;
+  liveHasData=true;
+  const next=W.makeSession(live.samples,{metadata:{...session.metadata,title:'Live instrument session'},config:session.config,
+   source:{name:'Browser Web Serial recording',description:'Live serial arrivals · SAE units confirmed by operator',timing:'Browser receive times'},
+   raw:{rxHex:live.rxHex,txHex:live.txHex,kind:'Exact Web Serial bytes; host write is not device acknowledgment',logText:live.log()},activity:session.activity});
+  loadSession(next);$('recording-date').textContent='LIVE INSTRUMENT RECORDING';$('count-total').textContent='/ live';
+  $('recording-note').textContent='Live serial arrival times; SAE inches/pounds confirmed by operator. Draft settings are not instrument limits. All readings are retained.';
+  document.querySelectorAll('[data-export]').forEach(b=>b.disabled=false);
+  $('export-state').textContent='Live data changed — export to keep a portable copy';persist();
+ },
+ finishLive(live){
+  if(!liveActive)return;
+  this.receiveLive(live);liveActive=false;
+  for(const id of ['open-data','restore-capture','play','reset','speed','scrub','fit','jump-peak','fault-preview'])$(id).disabled=false;
+  document.querySelectorAll('[data-export]').forEach(b=>b.disabled=false);
+  $('workspace-mode').textContent='Offline replay';
+  document.querySelector('.metrics article:nth-child(1) > span').textContent='Replay force at cursor';
+  document.querySelector('.metrics article:nth-child(2) > span').textContent='Replay displacement';
+  if(!liveHasData){loadSession(session);notify('No live measurements received','Your prior recording remains available. Download the live log to retain the command exchange.');}
+  else{loadSession(session);$('recording-date').textContent='RECORDED LIVE SESSION · DISCONNECTED';changed('Live recording retained after disconnect.');}
+ },
+ getConfig(){return {...session.config};}
+};
 try{
  let initial;
  try{

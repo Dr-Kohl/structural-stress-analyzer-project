@@ -86,3 +86,31 @@ test('an unsolicited TM locks Start without a host write or a claim that load is
  assert.equal(s.testIssued,true);assert.equal(s.starting,false);assert.match(s.machine,/motion unconfirmed/);assert.deepEqual(p.writes,[]);
  await assert.rejects(s.send('T',{motionConfirmed:true}),/force-limit event/);await s.disconnect();
 });
+test('recorded T/S/TU/H exchange waits for Home, preserves exact bytes, and never sends host Home',async()=>{
+ const rows=require('node:fs').readFileSync(require('node:path').join(__dirname,'../evidence/2026-11-18/ssa-observed-active-stop-return-home.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+ const p=fake(),s=new LiveSession();await s.connect(p);
+ for(const row of rows){
+  if(row.event==='tx_attempt')await s.send(row.text,{motionConfirmed:row.text==='T'});
+  if(row.event==='rx'){p.rx(Buffer.from(row.hex,'hex').toString('latin1'));await tick();}
+  if(row.event==='record'&&row.text==='TU'){
+   assert.equal(s.stopReturn.homeReported,false);assert.equal(s.starting,true);
+   await assert.rejects(s.send('H',{motionConfirmed:true}),/pending/);
+  }
+ }
+ assert.equal(s.stopReturn.marker,'TU');assert.equal(s.stopReturn.homeReported,true);assert.equal(s.starting,false);assert.equal(s.testIssued,true);
+ assert.equal(s.samples.length,1);assert.equal(s.samples[0].force_lb,0);
+ assert.equal(s.rxHex,rows.filter(r=>r.event==='rx').map(r=>r.hex).join(''));assert.deepEqual(p.writes,[[84],[83],[83]]);
+ assert.equal(s.entries.filter(r=>r.event==='home_report').length,1);assert.match(s.machine,/S reply/);
+ await assert.rejects(s.send('T',{motionConfirmed:true}),/already requested/);await s.disconnect();assert.equal(s.stopReturn.homeReported,true);
+});
+test('TU framing and return state are separate from an idle S reply, and preserve earlier force-limit evidence',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);await s.send('T',{motionConfirmed:true});
+ p.rx('S\rTUX\rTU');await tick();assert.equal(s.stopReturn,null);assert.equal(s.starting,true);
+ p.rx('\r');await tick();assert.equal(s.stopReturn.homeReported,false);p.rx('TT\rS\rH');await tick();assert.equal(s.awaitingHome,true);
+ await assert.rejects(s.send('H',{motionConfirmed:true}),/return is pending/);
+ p.rx('\r');await tick();assert.equal(s.stopReturn.homeReported,true);assert.equal(s.starting,false);await s.disconnect();
+ const q=fake();q.writable=new WritableStream({async write(){q.rx('0035,0994\rTM\rTU\rH\r');await tick();}});
+ const fast=new LiveSession();await fast.connect(q);await fast.send('T',{motionConfirmed:true});
+ assert.equal(fast.starting,false);assert.equal(fast.stopReturn.homeReported,true);assert.equal(fast.lastTestResult.kind,'force-limit');
+ assert.match(fast.machine,/Home reply received after/);assert.equal(fast.testIssued,true);await fast.disconnect();
+});

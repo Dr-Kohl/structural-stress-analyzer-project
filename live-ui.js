@@ -18,14 +18,22 @@ function render(){
   const message=point?'Last transmitted reading before the marker: '+point.force_lb+' lb at '+point.displacement_in.toFixed(3)+' in. This is not the exact trip force.':'No measurement preceded the marker.';
   if($('live-limit-reading').textContent!==message)$('live-limit-reading').textContent=message;
  }
+ $('live-stop-notice').hidden=!live.stopReturn;
+ if(live.stopReturn){
+  const message=!connected&&!live.stopReturn.homeReported?
+   'The connection closed before a Home reply was received. Position and load are unknown. No automatic Home or reconnect was sent.':live.stopReturn.homeReported?
+   'The tester sent a Home reply after the stop-return marker. Confirm its physical position before touching the setup. No automatic Home or Start was sent by this page.':
+   'Stop-return marker received; waiting for a separate Home reply. Keep clear: the mechanism may be returning. No automatic Home command was sent by this page.';
+  if($('live-stop-state').textContent!==message)$('live-stop-state').textContent=message;
+ }
  $('live-version').textContent=live.version||'Not queried';$('live-last').textContent=live.lastReceived?new Date(live.lastReceived).toLocaleTimeString():'No received bytes';
  $('live-bytes').textContent='TX '+live.txHex.length/2+' · RX '+live.rxHex.length/2;
  $('connection').disabled=opening||!['disconnected','fault'].includes(live.phase);
  $('disconnect').disabled=!connected||live.busy;
- $('machine-home').disabled=!free||live.starting;$('machine-start').disabled=!free||live.testIssued;
+ $('machine-home').disabled=!free||live.starting||live.awaitingHome;$('machine-start').disabled=!free||live.testIssued;
  $('machine-stop').disabled=!free;$('machine-stop').title='Send S once. Stopping behavior is unverified.';
  $('live-version-query').disabled=!free;
- for(const id of ['live-continuous','live-incremental'])$(id).disabled=!free||live.starting;
+ for(const id of ['live-continuous','live-incremental'])$(id).disabled=!free||live.starting||live.awaitingHome;
  $('live-review').disabled=!['disconnected','fault'].includes(live.phase);
  $('machine-help').textContent=connected?'Research controls. Stop request is unverified; physical power remains the fallback. Draft limits are not applied.':'Machine state unknown. Connect deliberately; no automatic Home or Start.';
  $('live-transcript').textContent=live.entries.slice(-60).map(e=>Number(e.elapsed_s).toFixed(3)+' '+e.event+(e.text!==undefined?' '+e.text:'')+(e.message?' '+e.message:'')).join('\n');
@@ -65,7 +73,7 @@ $('live-continuous').addEventListener('click',()=>issue('C'));
 $('live-incremental').addEventListener('click',()=>issue('I'));
 $('machine-stop').addEventListener('click',()=>issue('S'));
 function confirmMotion(command){
- if(!live||live.phase!=='connected'||live.busy||live.starting)return;
+ if(!live||live.phase!=='connected'||live.busy||live.starting||live.awaitingHome)return;
  pendingCommand=command;$('motion-title').textContent=command==='H'?'Request Home':'Start a physical test';
  $('motion-description').textContent=command==='H'?'Send H once. The mechanism may move toward home. No automatic follow-up command is sent.':'Send T once. The tester may pull the specimen to failure using its current instrument settings. This does not apply the webpage’s configuration draft. Save or download this session before any destructive test.';
  $('motion-ready').checked=false;$('motion-send').disabled=true;$('motion-dialog').showModal();

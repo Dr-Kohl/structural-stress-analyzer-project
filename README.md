@@ -68,6 +68,14 @@ When disconnected, choose **Review recording** to use replay/import controls aga
 
 The live recorder limits a connection to 2 MB of raw incoming bytes, 100,000 readings and 4 KB of pending unterminated text. Browser storage may fill sooner; save sessions regularly. HTTP requests do not upload imported/live measurements; communication goes through the operator-selected local serial port.
 
+### Observed stop/return sequence (`TU` then `H`)
+
+In the saved brief Stop trial, the browser sent `T`, then `S`. The tester sent `TU\r`, followed by `H\r`, without a browser Home command. The operator observed motion stop and apparently return home. Only one zero-force measurement was recorded, so significant-load stopping, guaranteed latency and emergency-stop performance remain unverified. The full firmware meaning of TU is not documented; its classification follows this observed sequence.
+
+The page now shows **Stop/return sequence recorded**, keeps Home and mode changes blocked while awaiting the separate Home reply, then records **Home reply received**. A plain `S\r` alone does not clear the pending-test guard. The page never sends Home automatically. A disconnect before H is shown as an unknown return outcome. Another Start still requires a fresh connection; verify physical position and load before interacting with the fixture. Both the sequence and Home report survive log/session export and browser recovery. An earlier maximum-force warning is retained if both events occur in a connection.
+
+See [the exact chronology and limitations](evidence/2026-11-18/active-stop-return-home-findings.txt).
+
 ## Verification
 
 Data/model tests need Node.js:

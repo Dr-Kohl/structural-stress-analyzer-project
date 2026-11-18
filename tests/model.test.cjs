@@ -21,9 +21,9 @@ test('unexpected and incomplete records remain available instead of being lost',
  const p=new model.SerialParser().push('U\rH\rbad\r0043,0114\r123');
  assert.deepEqual(p.markers,['U','H']);assert.deepEqual(p.unknown,['bad']);assert.equal(p.pending,'123');assert.equal(p.records[0].force_lb,114);
 });
-test('offline parsing recognizes TM while keeping measurements and near-match unknown records',()=>{
- const p=new model.SerialParser().push('D\r0035,0994\rT').push('M\rTMX\r');
- assert.deepEqual(p.markers,['D','TM']);assert.deepEqual(p.unknown,['TMX']);assert.equal(p.records.length,1);assert.equal(p.records[0].force_lb,994);assert.equal(p.pending,'');
+test('offline parsing recognizes TM/TU while keeping measurements and near-match unknown records',()=>{
+ const p=new model.SerialParser().push('D\r0035,0994\rT').push('M\rTMX\rT').push('U\rH\rTUX\r');
+ assert.deepEqual(p.markers,['D','TM','TU','H']);assert.deepEqual(p.unknown,['TMX','TUX']);assert.equal(p.records.length,1);assert.equal(p.records[0].force_lb,994);assert.equal(p.pending,'');
 });
 test('peak, zero-force tail and receive timing match capture',()=>{
  const s=model.summarize(samples);assert.equal(s.peak.sample_index,44);assert.equal(s.peak.force_lb,114);assert.equal(s.peak.displacement_in,.043);

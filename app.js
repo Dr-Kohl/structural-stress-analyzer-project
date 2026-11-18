@@ -260,7 +260,7 @@ window.SSAView={
   if(!liveActive||!live.samples.length)return;
   liveHasData=true;
   const next=W.makeSession(live.samples,{metadata:{...session.metadata,title:'Live instrument session'},config:session.config,
-   source:{name:'Browser Web Serial recording',description:'Live serial arrivals · SAE units confirmed by operator'+(live.lastTestResult?.kind==='force-limit'?' · Device reported maximum force exceeded':''),timing:'Browser receive times'},
+   source:{name:'Browser Web Serial recording',description:'Live serial arrivals · SAE units confirmed by operator'+(live.lastTestResult?.kind==='force-limit'?' · Device reported maximum force exceeded':'')+(live.stopReturn?(live.stopReturn.homeReported?' · Stop-return marker followed by Home reply':' · Stop-return marker; Home reply not received'):''),timing:'Browser receive times'},
    raw:{rxHex:live.rxHex,txHex:live.txHex,kind:'Exact Web Serial bytes; host write is not device acknowledgment',logText:live.log()},activity:session.activity});
   loadSession(next);$('recording-date').textContent='LIVE INSTRUMENT RECORDING';$('count-total').textContent='/ live';
   $('recording-note').textContent='Live serial arrival times; SAE inches/pounds confirmed by operator. Draft settings are not instrument limits. All readings are retained.';

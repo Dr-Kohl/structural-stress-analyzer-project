@@ -8,13 +8,14 @@ class LiveSession{
  constructor({onUpdate=()=>{},save=()=>{},now=()=>performance.now(),utc=()=>new Date().toISOString()}={}){
   this.onUpdate=onUpdate;this.save=save;this.now=now;this.utc=utc;this.phase='disconnected';this.machine='Unknown';
   this.port=null;this.reader=null;this.readTask=null;this.closing=false;this.busy=false;this.starting=false;
-  this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;this.lastTestResult=null;
+  this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;this.lastTestResult=null;this.stopReturn=null;
  }
  event(event,fields={}){
   const row={utc:this.utc(),elapsed_s:Math.max(0,(this.now()-this.started)/1000),event,...fields};
   this.entries.push(row);this.save(this.log());return row;
  }
  log(){return this.entries.map(r=>JSON.stringify(r)).join('\n')+(this.entries.length?'\n':'');}
+ get awaitingHome(){return !!this.stopReturn&&!this.stopReturn.homeReported;}
  update(){this.onUpdate(this);}
  async connect(port,{dtr=true,rts=true}={}){
   if(this.phase!=='disconnected')throw new Error('Disconnect before choosing another port.');
@@ -64,7 +65,22 @@ class LiveSession{
     lastMeasurement:this.samples.length?{...this.samples.at(-1)}:null};
    this.event('test_result',this.lastTestResult);
   }
-  else if(line==='H')this.machine='Last report: Home reply';
+  else if(line==='TU'){
+   // Observed after an active S, then followed by H without a host Home send.
+   // Keep motion actions blocked while waiting for that separate Home report.
+   this.starting=true;this.testIssued=true;
+   this.stopReturn={kind:'stop-return',marker:'TU',utc:this.utc(),homeReported:false,homeReportUtc:null};
+   this.machine='Stop-return marker received — awaiting Home reply; keep clear';
+   this.event('test_result',this.stopReturn);
+  }
+  else if(line==='H'){
+   this.machine='Last report: Home reply';
+   if(this.stopReturn&&!this.stopReturn.homeReported){
+    this.stopReturn.homeReported=true;this.stopReturn.homeReportUtc=this.utc();this.starting=false;
+    this.machine='Home reply received after stop-return marker — verify physical position';
+    this.event('home_report',{after_marker:'TU',physical_state_verified:false});
+   }
+  }
   else if(line==='U')this.machine='Last report: U (seen during homing)';
   else if(line==='S')this.machine='S reply received — stopped state unverified';
   else if(line==='C'||line==='I')this.machine=line+' reply received — settings unverified';
@@ -76,8 +92,8 @@ class LiveSession{
   if(this.phase!=='connected'||this.closing)throw new Error('Connect before sending a command.');
   if(this.busy)throw new Error('Another write is pending; no duplicate was sent.');
   if(['H','T'].includes(command)&&!motionConfirmed)throw new Error('An explicit motion confirmation is required.');
-  if(command==='T'&&this.testIssued)throw new Error('A test start was already requested or a force-limit event was received. Save and reconnect for another test.');
-  if(this.starting&&['H','C','I'].includes(command))throw new Error('A test start is pending; only S or V may be sent.');
+  if(command==='T'&&this.testIssued)throw new Error('A test start was already requested, or a force-limit event or return event was received. Save and reconnect for another test.');
+  if((this.starting||this.awaitingHome)&&['H','C','I'].includes(command))throw new Error('A test or return is pending; only S or V may be sent.');
   this.busy=true;let writer;
   try{
    this.event('tx_attempt',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1});

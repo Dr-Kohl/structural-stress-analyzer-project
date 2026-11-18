@@ -22,6 +22,8 @@ class LiveSession{
  get canStart(){return this.phase==='connected'&&!this.closing&&!this.busy&&!this.configuring&&this.setupState!=='failed'&&!this.starting&&!this.awaitingHome&&!this.homing&&!this.requiresHome&&!['triggered','sending'].includes(this.softwareStop?.status)&&(!this.testIssued||this.testComplete);}
  get canPrepareTest(){return this.canStart&&(!this.samples.length||this.testComplete);}
  get canResume(){return this.phase==='connected'&&!this.closing&&!this.busy&&!this.configuring&&this.mode==='incremental'&&this.starting&&!this.awaitingHome&&!this.homing&&!this.requiresHome&&this.incrementalStep?.phase==='verify-pause'&&!['triggered','sending','sent','failed'].includes(this.softwareStop?.status);}
+ get incrementalHomeAvailable(){return this.mode==='incremental'&&this.starting&&this.incrementalStep?.readingReceived&&['verify-pause','stopping'].includes(this.incrementalStep.phase);}
+ get canHome(){return this.phase==='connected'&&!this.closing&&!this.busy&&!this.configuring&&!this.awaitingHome&&!this.homing&&(!this.starting||this.incrementalHomeAvailable);}
  cancelSetup(message){if(this.setupWaiter){const reject=this.setupWaiter.reject;this.setupWaiter=null;reject(new Error(message));}}
  waitForSetup(ms,modeReply=false){
   return new Promise((resolve,reject)=>{
@@ -132,7 +134,7 @@ class LiveSession{
    this.samples.push({sample_index:this.samples.length+1,time_s:Math.max(0,(this.now()-this.started)/1000),displacement_in:Number(m[1])/1000,force_lb:Number(m[2]),raw_field_1:m[1],raw_field_2:m[2]});
    this.machine='Measurement received — motion unconfirmed';
    if(this.mode==='incremental'&&this.starting&&this.incrementalStep?.marker&&['pending','verify-pause'].includes(this.incrementalStep.phase)&&Number(m[2])>0){
-    this.incrementalStep.phase='verify-pause';this.machine='Increment reading received — confirm physical pause before Continue; specimen may remain loaded';
+    this.incrementalStep.phase='verify-pause';this.incrementalStep.readingReceived=true;this.machine='Increment reading received — confirm physical pause before Continue or Home; specimen may remain loaded';
     this.event('incremental_reading',{step:this.incrementalStep.number,reading:{...this.samples.at(-1)},physical_pause_verified:false});
    }
   }else if(line==='D')this.machine='Test data marker received';
@@ -157,7 +159,9 @@ class LiveSession{
    this.event('test_result',this.stopReturn);
   }
   else if(line==='H'){
+   const requestedHome=this.homing;
    this.homing=false;this.requiresHome=false;
+   if(requestedHome){this.starting=false;if(this.incrementalStep)this.incrementalStep.phase='ended';}
    if(!this.starting||this.awaitingHome)this.testComplete=true;
    this.machine='Last report: Home reply';
    if(this.stopReturn&&!this.stopReturn.homeReported){
@@ -188,11 +192,16 @@ class LiveSession{
   if(['H','T'].includes(command)&&!motionConfirmed)throw new Error('An explicit motion confirmation is required.');
   if(resume&&(command!=='T'||!this.canResume||!pauseConfirmed))throw new Error('Continue requires a new increment reading and explicit confirmation that the mechanism has paused.');
   if(command==='T'&&!resume&&!this.canStart)throw new Error('A test is already requested or a test, force-limit event or return is pending. Wait for completion; a force-limit event requires Home.');
-  if((this.starting||this.awaitingHome||this.homing)&&['H','C','I'].includes(command))throw new Error('A test or return is pending; only S or V may be sent.');
+  if(command==='H'&&this.incrementalHomeAvailable&&!pauseConfirmed)throw new Error('Home during Incremental requires a completed step reading and explicit physical-pause confirmation.');
+  if((this.starting||this.awaitingHome||this.homing)&&['H','C','I'].includes(command)&&!(command==='H'&&this.canHome&&pauseConfirmed))throw new Error('A test or return is pending; only S or V may be sent.');
   this.busy=true;let writer;
   try{
    if(command==='S'&&this.configuring){this.setupState='failed';this.cancelSetup('Stop interrupted Incremental setup; no further configuration bytes will be sent.');}
    if(command==='S'&&this.incrementalStep)this.incrementalStep.phase='stopping';
+   if(command==='H'&&this.incrementalHomeAvailable){
+    this.event('incremental_home_requested',{step:this.incrementalStep.number,physical_pause_confirmed_by:'operator',unloaded_state_verified:false});
+    this.incrementalStep.phase='homing';this.finishSoftwareStop('Operator requested Home from Incremental pause');
+   }
    if(['C','I'].includes(command)){this.mode='unknown';this.modeSelection=command;if(command==='C'){this.incrementalStep=null;this.setupState='idle';this.setupError='';}}
    if(command==='S'&&reason!=='software-threshold'&&this.testIssued)this.finishSoftwareStop('Manual Stop request superseded automatic threshold');
    if(command==='T'&&!resume){
@@ -203,7 +212,7 @@ class LiveSession{
    if(command==='T'&&this.mode==='incremental'){
     const step=resume?this.incrementalStep.number+1:1;
     if(resume)this.event('incremental_pause_confirmed',{step:step-1,confirmed_by:'operator'});
-    this.incrementalStep={number:step,phase:'pending',marker:null};this.event('incremental_step_requested',{step,resume,increment_lb:10});
+    this.incrementalStep={number:step,phase:'pending',marker:null,readingReceived:false};this.event('incremental_step_requested',{step,resume,increment_lb:10});
    }
    const bytes=new Uint8Array(Array.from(command,c=>c.charCodeAt(0))),label=parameter?'Incremental 10 lb parameter':resume?'Continue increment request':COMMANDS[command];
    this.event('tx_attempt',{hex:hex(bytes),text:visible(bytes),byte_count:bytes.length,reason,

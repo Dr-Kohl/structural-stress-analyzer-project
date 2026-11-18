@@ -245,5 +245,29 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.locator('#live-review').click();await page.reload();assert.match(await page.locator('#source-label').textContent(),/Incremental 10 lb requested/);
   assert.equal(await page.locator('#machine-continue').isDisabled(),true);assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.deepEqual(errors,[]);
   console.log('PASS: captured Incremental setup; confirmed manual Continue; ID/data boundary; four steps on one graph; software stop across steps; audit/export/recovery; no auto-resume; desktop/mobile.');
+  // Regression: S echo at an Incremental pause must not trap the Home control.
+  await page.evaluate(()=>__ssaFake.autoIncrementalAck=true);await page.locator('#connection').click();
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');await page.locator('#live-incremental').click();
+  await page.waitForFunction(()=>document.getElementById('live-mode-status').textContent.includes('Ready for one confirmed Start'));
+  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.evaluate(()=>__ssaFake.rx('D\r0000,0000\r'));await page.waitForFunction(()=>document.getElementById('count').textContent==='1');
+  assert.equal(await page.locator('#machine-home').isDisabled(),true);
+  await page.evaluate(()=>__ssaFake.rx('0001,0066\r'));await page.waitForFunction(()=>!document.getElementById('machine-home').disabled);
+  await page.locator('#machine-stop').click();await page.evaluate(()=>__ssaFake.rx('S\r'));await page.waitForFunction(()=>document.getElementById('live-status').textContent.includes('S reply'));
+  assert.equal(await page.locator('#machine-continue').isDisabled(),true);assert.equal(await page.locator('#machine-home').isDisabled(),false);
+  await page.locator('#machine-home').click();assert.equal(await page.locator('#motion-send').isDisabled(),true);
+  assert.match(await page.locator('#motion-ready-label').textContent(),/physically paused/);assert.match(await page.locator('#motion-description').textContent(),/acceptance|not yet verified/);
+  await page.locator('#motion-dialog [data-close]').first().click();assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[73],[77,73,48,49,48,13],[84],[83]]);
+  await page.locator('#machine-home').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.waitForFunction(()=>__ssaFake.writes.at(-1)[0]===72);assert.equal(await page.locator('#machine-start').isDisabled(),true);assert.equal(await page.locator('#machine-home').isDisabled(),true);
+  await page.locator('#live-version-query').click();await page.evaluate(()=>__ssaFake.rx('V4.0\r'));await page.waitForFunction(()=>document.getElementById('live-version').textContent==='4.0');
+  assert.equal(await page.locator('#machine-start').isDisabled(),true,'a version reply does not complete Home');
+  await page.evaluate(()=>__ssaFake.rx('H\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
+  assert.equal(await page.locator('#count').textContent(),'2');assert.equal(await page.locator('#force').textContent(),'66');
+  assert.match(await page.locator('#live-mode-status').textContent(),/retained test readings, not current load/);
+  const recovery=await page.evaluate(()=>localStorage.getItem('ssa.live.recovery.v1'));assert.match(recovery,/incremental_home_requested/);
+  assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[73],[77,73,48,49,48,13],[84],[83],[72],[86]]);assert.deepEqual(errors,[]);
+  await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
+  console.log('PASS: Home available after completed increment and S echo; physical-pause confirmation; one H; no automatic retry; version alone does not unlock; H report releases guard and retains test readings.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

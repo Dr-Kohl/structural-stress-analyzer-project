@@ -78,3 +78,33 @@ test('terminal markers, unexpected setup activity, and unplug never enable Conti
  const p=fake({ack:false}),s=new LiveSession();await s.connect(p);const setup=s.configureIncremental();const outcome=assert.rejects(setup,/Unexpected device activity/);await settle();p.rx('D\r');await outcome;assert.deepEqual(p.writes,['I']);await s.disconnect();
  const q=fake(),z=new LiveSession();await z.connect(q);await z.configureIncremental();await z.send('T',{motionConfirmed:true});q.rx('D\r0001,0057\r');await settle();q.unplug();await settle();assert.equal(z.phase,'fault');assert.equal(z.canResume,false);assert.equal(z.samples.length,1);
 });
+test('Home from a completed increment requires operator pause confirmation and waits for H without retry',async()=>{
+ for(const stopFirst of [false,true]){
+  const p=fake(),s=new LiveSession();await s.connect(p);await s.configureIncremental();await s.send('T',{motionConfirmed:true});
+  assert.equal(s.canHome,false);p.rx('D\r0000,0000\r');await settle();assert.equal(s.canHome,false);
+  p.rx('0001,0066\r');await settle();assert.equal(s.canHome,true);
+  if(stopFirst){await s.send('S');p.rx('S\r');await settle();assert.equal(s.canResume,false);assert.equal(s.canHome,true);}
+  await assert.rejects(s.send('H',{motionConfirmed:true}),/physical-pause confirmation/);
+  await s.send('H',{motionConfirmed:true,pauseConfirmed:true});assert.equal(s.homing,true);assert.equal(s.canStart,false);assert.equal(s.canResume,false);assert.equal(s.canHome,false);
+  const count=p.writes.length;await assert.rejects(s.send('H',{motionConfirmed:true,pauseConfirmed:true}),/pending/);assert.equal(p.writes.length,count);
+  await s.send('V');p.rx('V4.0\r');await settle();assert.equal(s.homing,true);assert.equal(s.canStart,false);
+  p.rx('H\r');await settle();assert.equal(s.homing,false);assert.equal(s.starting,false);assert.equal(s.testComplete,true);assert.equal(s.canStart,true);
+  assert.deepEqual(s.samples.map(x=>x.force_lb),[0,66]);assert.equal(p.writes.filter(x=>x==='H').length,1);
+  assert.equal(s.entries.find(e=>e.event==='incremental_home_requested').unloaded_state_verified,false);await s.disconnect();
+ }
+});
+test('real paused-S browser recording enables a Home request while retaining all five increments',async()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const archive=JSON.parse(fs.readFileSync(path.join(__dirname,'../evidence/2026-11-18/ssa-browser-incremental-paused-stop-without-home.session.json'),'utf8'));
+ const rows=archive.raw.logText.trim().split('\n').map(JSON.parse);const first=rows.findIndex(e=>e.event==='tx_attempt'&&e.text==='T');
+ const p=fake(),s=new LiveSession();await s.connect(p);await s.configureIncremental();
+ for(const row of rows.slice(first)){
+  if(row.event==='tx_attempt'&&row.text==='T'){
+   if(!s.testIssued)await s.send('T',{motionConfirmed:true});else await s.resumeIncrement({motionConfirmed:true,pauseConfirmed:true});
+  }else if(row.event==='tx_attempt'&&row.text==='S')await s.send('S');
+  else if(row.event==='rx'){p.rx(Buffer.from(row.hex,'hex').toString('latin1'));await settle();}
+ }
+ assert.deepEqual(s.samples.map(x=>x.force_lb),[0,66,145,189,226,264]);assert.equal(s.machine,'S reply received — stopped state unverified');
+ assert.equal(s.canHome,true);assert.equal(s.canResume,false);assert.equal(s.canStart,false);assert.equal(p.writes.includes('H'),false);
+ await s.send('H',{motionConfirmed:true,pauseConfirmed:true});assert.equal(p.writes.at(-1),'H');assert.equal(s.homing,true);await s.disconnect();
+});

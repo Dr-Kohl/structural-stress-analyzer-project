@@ -47,12 +47,12 @@ function render(){
  }
  $('live-version').textContent=live.version||'Not queried';$('live-last').textContent=live.lastReceived?new Date(live.lastReceived).toLocaleTimeString():'No received bytes';
  const step=live.incrementalStep;
- $('live-mode-status').textContent=live.configuring?'Setting Incremental 10 lb: '+live.setupState+'; no Start sent.':live.setupState==='failed'?'Incremental setup incomplete: '+live.setupError+' No automatic retry. Reconnect before trying setup again.':live.mode==='incremental'?'Incremental 10 lb requested (parameter acceptance unconfirmed). '+(step?(step.phase==='verify-pause'?'Step '+step.number+' reading received. Verify physical pause before Continue; specimen may remain loaded.':step.phase==='pending'?'Step '+step.number+' pending; waiting for reply and a nonzero force reading.':step.phase==='stopping'?'Stop requested; wait for return/end reports.':'Incremental test/return ended.'):'Ready for one confirmed Start.'):'Instrument mode: '+(live.mode==='continuous'?'Continuous reply received':'unknown; select a mode before testing')+'.';
+ $('live-mode-status').textContent=live.configuring?'Setting Incremental 10 lb: '+live.setupState+'; no Start sent.':live.setupState==='failed'?'Incremental setup incomplete: '+live.setupError+' No automatic retry. Reconnect before trying setup again.':live.mode==='incremental'?'Incremental 10 lb requested (parameter acceptance unconfirmed). '+(step?(step.phase==='verify-pause'?'Step '+step.number+' reading received. Verify physical pause before Continue or Home; specimen may remain loaded.':step.phase==='pending'?'Step '+step.number+' pending; waiting for reply and a nonzero force reading.':step.phase==='stopping'?'Stop requested; an S reply does not confirm unloading. If the mechanism has physically paused, you can request Home.':step.phase==='homing'?'Home request sent; waiting for a reply. Position and load remain unconfirmed.':'Incremental test/return ended. Last plotted values are retained test readings, not current load.'):'Ready for one confirmed Start.'):'Instrument mode: '+(live.mode==='continuous'?'Continuous reply received':'unknown; select a mode before testing')+'.';
  $('machine-continue').disabled=!live.canResume;
  $('live-bytes').textContent='TX '+live.txHex.length/2+' · RX '+live.rxHex.length/2;
  $('connection').disabled=opening||!['disconnected','fault'].includes(live.phase);
  $('disconnect').disabled=!connected||live.busy;
- $('machine-home').disabled=!free||live.configuring||live.starting||live.awaitingHome||live.homing;$('machine-start').disabled=!live.canStart;
+ $('machine-home').disabled=!live.canHome;$('machine-start').disabled=!live.canStart;
  $('machine-stop').disabled=!free;$('machine-stop').title='Send S once. Stopping behavior is unverified.';
  $('live-version-query').disabled=!free;
  for(const id of ['live-continuous','live-incremental'])$(id).disabled=!free||live.configuring||live.starting||live.awaitingHome||live.homing;
@@ -64,7 +64,7 @@ function render(){
 }
 function update(){if(!renderTimer)renderTimer=setTimeout(()=>{renderTimer=null;render();},80);}
 async function issue(command,motionConfirmed=false){
- try{if(command==='R')await live.resumeIncrement({motionConfirmed,pauseConfirmed:motionConfirmed});else await live.send(command,{motionConfirmed});}
+ try{if(command==='R')await live.resumeIncrement({motionConfirmed,pauseConfirmed:motionConfirmed});else await live.send(command,{motionConfirmed,pauseConfirmed:command==='H'&&motionConfirmed});}
  catch(error){$('live-log-status').textContent=error.message;}
  render();
 }
@@ -105,10 +105,11 @@ $('software-stop-disarm').addEventListener('click',()=>{
  catch(error){$('software-stop-error').textContent=error.message;$('software-stop-error').hidden=false;}render();
 });
 function confirmMotion(command){
- if(!live||live.phase!=='connected'||live.busy||live.configuring||live.awaitingHome||live.homing||(command==='R'?!live.canResume:live.starting)||(command==='T'&&!live.canStart))return;
+ if(!live||live.phase!=='connected'||live.busy||live.configuring||live.awaitingHome||live.homing||(command==='R'?!live.canResume:command==='H'?!live.canHome:live.starting)||(command==='T'&&!live.canStart))return;
  pendingCommand=command;$('motion-title').textContent=command==='H'?'Request Home':command==='R'?'Continue one increment':'Start a physical test';
- $('motion-ready-label').textContent=command==='R'?'I confirm the mechanism has physically paused, the guard is closed, I am clear of the loaded specimen and ready for one more increment, and I can cut physical power.':'I am ready for movement, the mechanism is clear, the device settings are appropriate, and I can cut physical power.';
+ $('motion-ready-label').textContent=command==='H'&&live.incrementalHomeAvailable?'I confirm the mechanism has physically paused, the guard is closed, I am clear of the loaded specimen and ready for return movement, and I can cut physical power.':command==='R'?'I confirm the mechanism has physically paused, the guard is closed, I am clear of the loaded specimen and ready for one more increment, and I can cut physical power.':'I am ready for movement, the mechanism is clear, the device settings are appropriate, and I can cut physical power.';
  $('motion-description').textContent=command==='H'?'Send H once. The mechanism may move toward home. No automatic follow-up command is sent.':'Send T once. The tester may pull the specimen to failure using its current instrument settings. This does not apply the webpage’s configuration draft. Save or download this session before any destructive test.';
+ if(command==='H'&&live.incrementalHomeAvailable)$('motion-description').textContent='Send H once to request return from this Incremental pause. This may move the mechanism and change the specimen load. Its behavior in this state is not yet verified. No automatic retry is sent. An H reply alone does not verify that the specimen is unloaded.';
  if(command==='R')$('motion-description').textContent='Send T once to advance the existing Incremental test. All earlier steps stay on the graph. The requested increment is 10 lb, but actual force increases can be much larger. A received reading does not prove the mechanism has stopped. Do not touch the loaded specimen.';
  if(command==='T'&&live.mode==='incremental')$('motion-description').textContent+=' Incremental 10 lb setup was requested; this starts the first step. Its acceptance and actual stopping force are not verified.';
  if(command==='T'||command==='R')$('motion-description').textContent+=' '+(live.softwareStop?.status==='armed'?'Software stop threshold is ARMED at '+live.softwareStop.thresholdLb+' lb. It can overshoot and is not a hardware or safety limit.':'Software stop threshold is NOT ARMED. No automatic force-triggered Stop will be sent.');

@@ -8,7 +8,7 @@ class LiveSession{
  constructor({onUpdate=()=>{},save=()=>{},now=()=>performance.now(),utc=()=>new Date().toISOString()}={}){
   this.onUpdate=onUpdate;this.save=save;this.now=now;this.utc=utc;this.phase='disconnected';this.machine='Unknown';
   this.port=null;this.reader=null;this.readTask=null;this.closing=false;this.busy=false;this.starting=false;
-  this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;
+  this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;this.lastTestResult=null;
  }
  event(event,fields={}){
   const row={utc:this.utc(),elapsed_s:Math.max(0,(this.now()-this.started)/1000),event,...fields};
@@ -56,6 +56,14 @@ class LiveSession{
    this.machine='Measurement received — motion unconfirmed';
   }else if(line==='D')this.machine='Test data marker received';
   else if(line==='TT'){this.machine='Test end marker received';this.starting=false;}
+  else if(line==='TM'){
+   // Correlated with the tester's maximum-force display in the saved wood trial.
+   // This ends the pending request, not a claim of stopped motion or released load.
+   this.machine='Maximum-force end marker received — motion unconfirmed';this.starting=false;this.testIssued=true;
+   this.lastTestResult={kind:'force-limit',marker:'TM',utc:this.utc(),sampleCount:this.samples.length,
+    lastMeasurement:this.samples.length?{...this.samples.at(-1)}:null};
+   this.event('test_result',this.lastTestResult);
+  }
   else if(line==='H')this.machine='Last report: Home reply';
   else if(line==='U')this.machine='Last report: U (seen during homing)';
   else if(line==='S')this.machine='S reply received — stopped state unverified';
@@ -68,7 +76,7 @@ class LiveSession{
   if(this.phase!=='connected'||this.closing)throw new Error('Connect before sending a command.');
   if(this.busy)throw new Error('Another write is pending; no duplicate was sent.');
   if(['H','T'].includes(command)&&!motionConfirmed)throw new Error('An explicit motion confirmation is required.');
-  if(command==='T'&&this.testIssued)throw new Error('A test start was already requested in this connection. Save and reconnect for another test.');
+  if(command==='T'&&this.testIssued)throw new Error('A test start was already requested or a force-limit event was received. Save and reconnect for another test.');
   if(this.starting&&['H','C','I'].includes(command))throw new Error('A test start is pending; only S or V may be sent.');
   this.busy=true;let writer;
   try{

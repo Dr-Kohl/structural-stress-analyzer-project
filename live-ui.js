@@ -12,6 +12,12 @@ function render(){
  $('live-panel').hidden=false;$('live-phase').textContent=live.phase;
  $('rail-connection').textContent=connected?'Serial port open':live.phase==='connecting'?'Connecting':'No device connected';
  $('rail-machine').textContent=live.machine;$('live-status').textContent=live.error?live.error+' Connection state is unknown; physical motion may continue.':live.machine;
+ const limit=live.lastTestResult?.kind==='force-limit';$('live-limit-notice').hidden=!limit;
+ if(limit){
+  const point=live.lastTestResult.lastMeasurement;
+  const message=point?'Last transmitted reading before the marker: '+point.force_lb+' lb at '+point.displacement_in.toFixed(3)+' in. This is not the exact trip force.':'No measurement preceded the marker.';
+  if($('live-limit-reading').textContent!==message)$('live-limit-reading').textContent=message;
+ }
  $('live-version').textContent=live.version||'Not queried';$('live-last').textContent=live.lastReceived?new Date(live.lastReceived).toLocaleTimeString():'No received bytes';
  $('live-bytes').textContent='TX '+live.txHex.length/2+' · RX '+live.rxHex.length/2;
  $('connection').disabled=opening||!['disconnected','fault'].includes(live.phase);

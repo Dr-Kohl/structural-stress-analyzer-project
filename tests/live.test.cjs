@@ -57,3 +57,32 @@ test('an immediate end marker during Start write does not get overwritten by wri
  const s=new LiveSession();await s.connect(p);await s.send('T',{motionConfirmed:true});
  assert.equal(s.starting,false);assert.equal(s.testIssued,true);assert.equal(s.machine,'Test end marker received');await s.disconnect();
 });
+test('recorded wood RX chunks identify a force-limit end, preserve every byte, and send no recovery command',async()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const rows=fs.readFileSync(path.join(__dirname,'../evidence/2026-11-18/ssa-wood-maximum-force-snapshot.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+ const chunks=rows.filter(e=>e.event==='rx').map(e=>e.hex),p=fake(),s=new LiveSession();await s.connect(p);await s.send('T',{motionConfirmed:true});
+ assert.equal(s.starting,true);
+ for(const chunk of chunks){p.rx(Buffer.from(chunk,'hex').toString('latin1'));await tick();}
+ assert.equal(s.samples.length,37);assert.equal(s.lastTestResult.marker,'TM');assert.equal(s.lastTestResult.kind,'force-limit');
+ assert.equal(s.lastTestResult.lastMeasurement.force_lb,994);assert.equal(s.lastTestResult.lastMeasurement.displacement_in,.035);
+ assert.equal(s.starting,false);assert.equal(s.testIssued,true);assert.equal(s.phase,'connected');
+ assert.equal(s.machine,'S reply received — stopped state unverified');assert.equal(s.rxHex,chunks.join(''));assert.deepEqual(p.writes,[[84]]);
+ assert.equal(s.entries.filter(e=>e.event==='test_result').length,1);
+ await assert.rejects(s.send('T',{motionConfirmed:true}),/already requested/);
+ await assert.rejects(s.send('H'),/confirmation/);await s.send('H',{motionConfirmed:true});
+ assert.deepEqual(p.writes,[[84],[72]]);assert.equal(s.lastTestResult.kind,'force-limit');await s.disconnect();assert.equal(s.lastTestResult.kind,'force-limit');
+});
+test('TM requires an exact complete CR record; a fast force-limit response is not overwritten by Start completion',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);await s.send('T',{motionConfirmed:true});
+ p.rx('TMX\rT');await tick();assert.equal(s.lastTestResult,null);assert.equal(s.starting,true);
+ p.rx('M');await tick();assert.equal(s.lastTestResult,null);p.rx('\r');await tick();
+ assert.equal(s.lastTestResult.marker,'TM');assert.equal(s.lastTestResult.lastMeasurement,null);assert.equal(s.starting,false);await s.disconnect();
+ const q=fake();q.writable=new WritableStream({async write(){q.rx('0035,0994\rTM\r');await tick();}});
+ const fast=new LiveSession();await fast.connect(q);await fast.send('T',{motionConfirmed:true});
+ assert.equal(fast.starting,false);assert.match(fast.machine,/Maximum-force end/);assert.equal(fast.lastTestResult.marker,'TM');await fast.disconnect();
+});
+test('an unsolicited TM locks Start without a host write or a claim that load is released',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);p.rx('TM\r');await tick();
+ assert.equal(s.testIssued,true);assert.equal(s.starting,false);assert.match(s.machine,/motion unconfirmed/);assert.deepEqual(p.writes,[]);
+ await assert.rejects(s.send('T',{motionConfirmed:true}),/force-limit event/);await s.disconnect();
+});

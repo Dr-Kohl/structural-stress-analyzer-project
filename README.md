@@ -58,6 +58,12 @@ Connection uses 9600 8N1, no flow control, with explicit DTR/RTS preferences. It
 
 Live data and exact RX/TX-attempt/result events are retained in browser recovery. **Download live log** preserves a JSONL file even if no measurements arrive; check the browser download completed. Recovery is not a durable disk-write guarantee. A logging failure or a read/write error closes the connection without retry; physical motion may continue. The browser warns before unloading a connected page, but cannot guarantee that a tab or computer stays open.
 
+### Maximum-force event (`TM`)
+
+The wood trial recorded `TM\r` immediately after 37 measurements, alongside the operator's report that the tester displayed maximum force exceeded. The last transmitted reading was **994 lb at 0.035 in**; that is not proof of the exact trip force or configured threshold. `TT\r` remains the distinct normal test-end marker.
+
+Receiving a complete `TM\r` now records a force-limit result, shows a persistent warning with the last transmitted reading, and releases the pending-test guard so **Home can be explicitly requested with its motion confirmation**. No Home, Stop, retry or reconnect is sent automatically. Start remains limited to one request per connection. The warning survives later S/version replies and disconnect; the result is retained in the JSONL log and exported/recovered session description. Neither TM nor a later S reply proves the specimen is unloaded or motion has stopped. This change does not implement or validate the lower force cutoff.
+
 When disconnected, choose **Review recording** to use replay/import controls again. Complete-session, CSV, raw evidence and chart exports work with received measurements; the complete live log retains nonmeasurement replies and unfinished byte tails. A recovered log can be downloaded on the next visit without opening hardware. New connections require the device picker and readiness checks again. A new browser profile/device does not share recovery.
 
 The live recorder limits a connection to 2 MB of raw incoming bytes, 100,000 readings and 4 KB of pending unterminated text. Browser storage may fill sooner; save sessions regularly. HTTP requests do not upload imported/live measurements; communication goes through the operator-selected local serial port.

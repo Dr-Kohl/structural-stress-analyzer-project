@@ -62,6 +62,36 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.evaluate(()=>__ssaFake.unplug());await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='fault');
   assert.equal(await page.locator('#machine-start').isDisabled(),true);assert.equal(await page.locator('#machine-stop').isDisabled(),true);assert.equal(await page.locator('#count').textContent(),'1');
   assert.equal(await page.evaluate(()=>__ssaFake.opens),1);assert.deepEqual(errors,[]);
+  // Replay the actual wood-trial RX chunks in a fresh mock session, not hardware.
+  await page.locator('#connection').click();await page.locator('#live-connect').click();
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
+  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.waitForFunction(()=>document.getElementById('machine-start').disabled);
+  const wood=await fs.readFile(path.join(root,'evidence/2026-11-18/ssa-wood-maximum-force-snapshot.jsonl'),'utf8');
+  const woodChunks=wood.trim().split('\n').map(JSON.parse).filter(e=>e.event==='rx').map(e=>Buffer.from(e.hex,'hex').toString('latin1'));
+  const before=await page.evaluate(()=>__ssaFake.writes.length);
+  await page.evaluate(chunks=>{for(const chunk of chunks)__ssaFake.rx(chunk);},woodChunks);
+  await page.waitForFunction(()=>document.getElementById('live-limit-notice').hidden===false);
+  assert.equal(await page.locator('#count').textContent(),'37');assert.equal(await page.locator('#peak').textContent(),'994');
+  assert.match(await page.locator('#live-limit-reading').textContent(),/994 lb at 0.035 in/);
+  assert.match(await page.locator('#live-limit-reading').textContent(),/not the exact trip force/);
+  assert.equal(await page.locator('#machine-home').isDisabled(),false);assert.equal(await page.locator('#machine-start').isDisabled(),true);
+  assert.equal(await page.evaluate(()=>__ssaFake.writes.length),before,'TM must not automatically send Home/Stop or retry');
+  await page.locator('#live-version-query').click();await page.evaluate(()=>__ssaFake.rx('V4.0\r'));assert.equal(await page.locator('#live-limit-notice').isVisible(),true);
+  await page.locator('#machine-home').click();assert.equal(await page.locator('#motion-send').isDisabled(),true);await page.locator('#motion-dialog [data-close]').first().click();
+  await page.locator('#save-data').click();const limitExportEvent=page.waitForEvent('download');await page.locator('[data-export=session]').click();
+  const limitDl=await limitExportEvent,limitFile=path.join(work,'force-limit.session.json');await limitDl.saveAs(limitFile);
+  const limitArchive=JSON.parse(await fs.readFile(limitFile,'utf8'));assert.equal(limitArchive.samples.length,37);
+  assert.match(limitArchive.source.description,/maximum force exceeded/);assert.match(limitArchive.raw.logText,/"event":"test_result"/);assert.match(limitArchive.raw.logText,/"marker":"TM"/);
+  await page.locator('#save-dialog [data-close]').first().click();
+  await page.screenshot({path:path.join(work,'force-limit-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:375,height:1000});await page.screenshot({path:path.join(work,'force-limit-mobile.png'),fullPage:true});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+  await page.setViewportSize({width:1366,height:1000});await page.locator('#disconnect').click();
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');assert.equal(await page.locator('#live-limit-notice').isVisible(),true);
+  await page.locator('#live-review').click();await page.reload();assert.match(await page.locator('#source-label').textContent(),/maximum force exceeded/);
+  assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.deepEqual(errors,[]);
+  console.log('PASS: actual wood RX replay recognizes TM; persistent force warning; confirmed Home available; Start stays locked; no auto-send; alarm provenance survives session export/recovery; desktop/mobile layout.');
   console.log('PASS: simulated serial connect without writes; version; confirmed single Start; unverified S; fragmented live plot; exact log/session export; 4 layouts; clean disconnect; recovery; no auto-reconnect; unplug data retention.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -4,6 +4,8 @@ A local workspace and diagnostic tools for replacing the Structural Stress Analy
 
 ## Open the workspace
 
+Open the [browser workspace on GitHub Pages](https://dr-kohl.github.io/structural-stress-analyzer-project/). It runs in your browser with the same replay, import and export features. Imported recordings stay in your browser; the app does not upload them. Browser recovery for the hosted site is separate from recovery for a local file.
+
 Double-click **index.html** in Microsoft Edge or Chrome. Keep the project folder together. No server, installation, internet connection, or build step is needed for the webpage.
 
 The familiar left column contains Settings, Test Config, Home, Start Test, Stop Test, Save Data, Disconnect, and Session details. **Home/Start/Stop/Disconnect are disabled**: the page has no serial API implementation or machine controls.

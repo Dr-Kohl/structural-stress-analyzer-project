@@ -1,0 +1,53 @@
+Maximum force investigation — saved evidence review
+November 18, 2026
+
+CONCLUSION
+No numeric maximum-force-setting command is established by the saved captures. The strongest explanation for the original Windows application's Global Max control is a PC-side threshold that monitors received force and requests a stop. This remains an inference: no original-software run that actually reached its GUI global limit was captured, and a command sent by another workflow/firmware version is not excluded. Do not invent MG060, MF060 or other numeric messages.
+
+DIRECT CAPTURE RECHECK
+All captures were read offline with tshark; no instrument port was opened and no serial bytes were transmitted.
+- Startup capture: only bulk OUT payload is H, frame 344.
+- Configuration capture: changing GUI Global Max from 500 to 450 sent bare C (hex 43), frame 70 at 270.834316s. It received C<CR> in frames 72/74.
+- Restoring GUI Global Max from 450 to 500 sent exactly the same single byte C, frame 76 at 326.921309s, receiving C<CR> in 78/80.
+- Every packet from frames 70 through 81 was rechecked. They contain only those C request/reply bulk transfers and their zero-length USB completions, with no USB control request carrying a hidden numeric setting.
+- The only numeric configuration message observed anywhere in this capture is MI020<CR>, frame 88, after I/I<CR>. Its relation is to the 20 lb Incremental setting, not Global Max. No replies followed in that session. Its exact parsing/acceptance is unresolved.
+- Original completed test capture: only bulk OUT serial payload is T, frame 7. That test peaked at 114 lb, below the reported 500 lb GUI limit, so absence of a Stop command does not test enforcement.
+
+REAL BROWSER RESULTS
+- The completed 204 lb run contained only T as host payload. The operator had reported a 60 lb front-panel setting, but its application/locking and scope were uncertain. Force reached 204 lb, followed by normal TT<CR>. No browser cutoff existed.
+- The wood run reached a last transmitted 994 lb and ended with TM<CR>, matching the operator's maximum-force-exceeded display near 1000 lb. A selected lower setting was not shown effective. The final received 994 is not necessarily the true trip force.
+- A later brief stop trial contains T, S, then TU<CR> and H<CR>, without a host H. The operator observed stopping and apparent homing. Only a zero-force measurement was recorded, so this does not verify stopping under load or a guaranteed latency. A second idle S produced S<CR>.
+These are distinct terminal paths: device-reported force limit TM versus the observed S/TU/H stop-return sequence. A future PC threshold sending S should be logged as a software-triggered stop request, not relabeled as a firmware TM event.
+
+OFFLINE THRESHOLD REPLAY (NO MACHINE COMMANDS)
+Source measurements are left unchanged. The table identifies the first received measurement at or above each hypothetical threshold. It is not a prediction of stopped force.
+Recorded run      Threshold lb  First eligible reading (index, force, displacement)
+Aluminum 204 lb    50 / 60       #2, 70 lb, 0.000 in (0.4585s after first reading)
+Aluminum 204 lb    100           #4, 116 lb, 0.000 in
+Aluminum 204 lb    200           #41, 200 lb, 0.030 in
+Aluminum 204 lb    500           Not reached
+Wood              50 / 60       #3, 64 lb, 0.002 in
+Wood              100           #5, 108 lb, 0.004 in
+Wood              200           #9, 204 lb, 0.008 in
+Wood              500           #21, 508 lb, 0.020 in
+Wood              1000          No received numeric reading reached 1000 before TM
+A browser threshold therefore cannot promise the exact selected maximum. Sampling/USB/browser latency, data gaps and the device's mechanical response all matter. The approximately 0.358s from S to TU in the zero-force trial is an arrival-time observation, not a rated mechanical stopping time or an overshoot bound.
+
+INSTALLED APPLICATION CHECK
+The installed SSA.exe was inspected read-only as supplementary evidence. Its LabVIEW PE resources do not expose readable maximum-force/protocol strings in ASCII or UTF-16 scans, and a scan for ordinary zlib streams did not expose a command dictionary. This is not full decompilation and does not prove the code lacks a device-setting path. The bundled SSA.html describes an older communication-test application, so it is not proof of this application's current Global Max implementation. No vendor executables/manuals were added to Git.
+
+WHAT CAN BE IMPLEMENTED WITHOUT GUESSING A DEVICE COMMAND
+An explicitly armed browser software stop threshold can watch decoded SAE force records and send the observed single-byte S once on the first qualifying reading during a test. The threshold must be selected/armed before T, clearly separate from a hardware setting, and archived with the crossing reading, reason, TX attempt/result and subsequent TU/H or failure. A later configuration edit must not silently change an armed threshold. A crossing should latch so subsequent samples cannot produce a burst of duplicate S writes. It must not auto-home, auto-restart or retry uncertain delivery. No automatic force-triggered write is implemented by this investigation.
+This would be experimental operational assistance, not a safety-rated interlock or a guaranteed maximum force. It depends on live telemetry, browser execution and successful S behavior; communication failure, tab suspension, logging/storage failure, delayed samples and under-load stopping remain material limitations. Physical protection and operator control remain independent.
+
+BEST NEXT EVIDENCE
+To establish whether the original software uses this approach, first fix its data directory to a normal writable user folder, then, only in a separately approved controlled setup, capture a low GUI Global Max crossing and see whether SSA sends S and receives TU/H. A saved capture of that event would directly distinguish PC-side stopping from a numeric device-setting command. It is not necessary to drive the tester to full capacity to investigate this. No new hardware test was performed or started here.
+
+SOURCES
+- evidence/2026-11-17/ssa1000-startup.pcapng
+- evidence/2026-11-17/ssa1000-configuration-investigation.pcapng
+- evidence/2026-11-17/ssa1000-sample-break-2026-11-17.pcapng
+- docs/configuration-investigation.txt (operator action mapping)
+- evidence/2026-11-18/ssa-first-complete-browser-test.session.json
+- evidence/2026-11-18/ssa-wood-maximum-force-snapshot.jsonl
+- evidence/2026-11-18/ssa-observed-active-stop-return-home.jsonl

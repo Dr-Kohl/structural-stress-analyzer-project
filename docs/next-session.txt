@@ -1,3 +1,8 @@
+LATEST UPDATE — public GitHub repository
+Repository: https://github.com/Dr-Kohl/structural-stress-analyzer-project
+The user authorized a new public repository. Publish the complete local main history, including selected original evidence and the offline browser workspace, with origin pointing to this repository. No open-source license has been selected. Vendor manuals/installers and ignored runtime/session files remain outside Git.
+The current hardware restriction is unchanged: work offline until the operator has access to the tester and confirms readiness. Historical local-only/publication statements below are superseded by this update.
+
 LATEST UPDATE — familiar offline browser workspace implemented
 Open index.html in Edge/Chrome. The new familiar action rail, Settings and mode-specific local Test Config drafts are implemented. Home/Start/Stop/Disconnect remain disabled; no browser serial API or live machine control exists.
 Offline features: original test replay; metadata; local draft settings; CSV/raw-text/session-JSON/Python-JSONL import; complete-session and CSV export; SVG/PNG graph export; raw evidence export; browser recovery; explicit save/download status; nonblocking communication-fault preview.

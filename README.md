@@ -98,11 +98,11 @@ The [final webpage plan](docs/final-webpage-plan.txt) describes the intended liv
 
 ## Local Git and public release
 
-All project source and selected evidence are committed locally. No remote is configured and nothing has been published to GitHub. Do not change original evidence; its directory disables line-ending conversion to preserve hashes.
+The public repository is [Dr-Kohl/structural-stress-analyzer-project](https://github.com/Dr-Kohl/structural-stress-analyzer-project). Project source, selected evidence and their Git history are preserved locally and published on the `main` branch. Do not change original evidence; its directory disables line-ending conversion to preserve hashes.
 
 The vendor PDFs are saved separately beside the project in `ssa1000-reference-manuals`. The executable and installer remain outside Git.
 
-Before publication, review evidence for user paths, USB identifiers, and vendor screenshots. No open-source license has been selected.
+The publication review checked tracked files and history for credential signatures and accidentally included runtime/session-log files. Selected evidence includes original USB identifiers, local paths and vendor screenshots. No open-source license has been selected.
 
 ```powershell
 git status

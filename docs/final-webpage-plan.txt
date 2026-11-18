@@ -1,0 +1,69 @@
+Final webpage plan — draft for review, November 17, 2026
+
+Design direction
+Keep the familiar SSA control names and left-hand action column, using the cleaner typography and graph treatment of the existing replay page. A chart-first toolbar is an alternative for smaller workspaces. Both are design previews, not live controllers. Keep a persistent distinction between Replay and Live; replay never opens hardware or transmits bytes.
+
+Primary workspace
+- Header: project/session name, Replay or Live, connection indicator, and Connect/Disconnect.
+- Left action column: Settings, Test Config, Home, Start Test, Stop Test, Save Data.
+- Replace Exit with Disconnect and normal browser close. Disconnect must never be presented as Stop.
+- State banner: Disconnected, Connecting, Connected/state unknown, At Home/Ready, Homing, Running, Paused, Completed, or Communication fault. Distinguish reported state from inferred state.
+- Current force and displacement with units, last-received time, and current versus last-known distinction.
+- Peak force and its displacement, clearly identified as current-test or saved-test values.
+- Dominant force-versus-displacement chart, crosshair/readout, zoom-to-fit and optional zero-force tail, full-data export, and cycle progress.
+- Keep existing replay controls available in Replay mode: play/pause, reset, speed and scrubbing. Do not label replay controls as machine controls.
+
+Settings
+Connection/device selection; session name; operator/material/specimen metadata; save destination; optional specimen dimensions and gauge length only if stress/strain calculations are later implemented. Put serial parameters and raw diagnostics in an Advanced section. Do not make users inspect COM/baud/hex details during ordinary testing unless needed to choose or diagnose a connection.
+Do not automatically home or start a test on Connect. Port opening may affect DTR/RTS, so the connection flow must explain that behavior and it must be tested.
+
+Test Config
+Continuous: Global maximum force.
+Incremental: Global maximum plus incremental force.
+Cyclic: Global maximum plus cyclic force and number of cycles; show cycles remaining during a test.
+Retain disabled fields visibly, like the original, so mode differences remain understandable.
+Keep edits as a local draft. An explicit Apply action starts configuration; indicate Pending, Confirmed, Failed, or Unverified. A GUI update or completed host write alone is not device acceptance.
+Never invent hardware ranges from the screenshot. Validate ranges and units against the applicable instrument/manual and observed protocol.
+
+Machine actions
+Home is an explicit action, separate from Connect. Its complete behavior needs verification.
+Start Test requires a confirmed usable connection and verified configuration workflow. Do not use the absence of an error as proof of device readiness.
+Stop Test remains visible in the operating layout. It must not be enabled or labeled operational until an actual stop command and behavior have been verified. A communication fault can prevent a software stop from reaching the machine; do not imply this replaces the physical controls.
+Avoid surprise resumes, automatic retries, or repeating a partially transmitted command. Do not auto-reconnect and replay a command after a fault.
+Allow Save Data after failure or disconnect. Configuration controls should not alter the mode mid-test unless a deliberate, verified workflow supports it.
+
+Data and saving
+Preserve exact incoming and outgoing bytes with timestamps, interpreted measurements, units, settings, command/acknowledgment history and errors. Never discard duplicate displacement values or the zero-force tail.
+Save CSV measurements, SVG/PNG graph, and a session/raw log. Display independent save states: saved, not saved, failed, or pending.
+Choose/validate the destination before a live test. Write recoverable data incrementally where supported rather than depending on one final export.
+If durable saving fails, keep acquired data available and show a recovery/download action. Do not automatically restart a machine action to recover data.
+Optional phase-two browser session history can use local persistence; no cloud account or upload is needed for the initial local instrument page.
+
+Error handling based on the supplied screenshot
+The screenshot shows -1073807360 in SSA Device Read.vi at a Property Node, while the main screen still says At Home. NI documents this numeric value as a generic VISA system error; it does not by itself establish the cause or prove a bad installation.
+Replace the blocking, code-only dialog with an inline, actionable banner while keeping the graph, saved data and raw log accessible.
+Example: Device read failed. Machine state is unconfirmed. Measurements are preserved. Reconnect before issuing commands.
+Show technical details on demand: original exception/code, operation, port, time, last received bytes and log location.
+Old At Home text becomes Last reported: At Home, with an age, rather than remaining a current/green ready indicator. Unknown measurements display dashes, not fabricated zeros.
+Offer inspection/export and a deliberate reconnect flow. Do not interpret a generic read failure as a confirmed cable disconnect or silently power-cycle the instrument.
+Reference: https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z000000P6USSA0&l=en-US
+
+Evidence gates / implementation order
+1. Preserve and extend the working offline replay: common workspace, local configuration drafts, error-state previews and reliable exports. No machine actions.
+2. Use the Python investigator for individual operator-chosen commands and logging. It is built, tested offline and currently disconnected because the operator was not ready for hardware.
+3. Implement a listening-first Web Serial connection after readiness is explicitly established. Chrome on Windows is the initial target, preferably served on localhost for development. Verify device selection, serial settings, DTR/RTS, read framing, failure handling and disconnect/reconnect before sending control commands.
+4. Verify the configuration handshake. Observed C/I replies and MI020 transmission are useful evidence; the lack of replies after MI020 is unresolved. Do not treat MI025/MI026 as observed or accepted commands. Global limit ownership/enforcement remains unproven.
+5. Enable verified Home/Start/Stop and configuration controls individually, with documented test evidence. T was associated with the recorded test but not independently characterized. Stop and cyclic command sequences remain unknown.
+6. Add cyclic-session organization and optional specimen stress/strain calculations once the necessary behavior and inputs are established.
+
+Acceptance checks
+Replay exactly matches all 144 captured readings and the confirmed peak 114 lb at 0.043 in.
+Switching to Incremental/Cyclic enables only the applicable draft fields.
+No device writes occur when merely loading the page, opening settings, editing a draft, or entering Replay mode.
+Unknown/fault state cannot display a stale ready indicator as current state.
+Graph and data remain available after a device read failure.
+Exports contain all captured data regardless of chart zoom, tail visibility or playback position.
+Save failures are visible; reconnect does not silently resend a command.
+
+Status
+This is a draft product plan. The running browser replay and Python investigator are unchanged by this planning work. The inline interface previews are local design interactions only and do not connect to hardware.

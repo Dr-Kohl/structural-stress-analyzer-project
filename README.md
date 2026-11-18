@@ -109,3 +109,7 @@ Start with [the next-session handoff](docs/next-session.txt) for the latest evid
 Double-click launch-investigator.cmd to open the manual diagnostic window. It starts disconnected, has an offline replay of the real captured serial stream, previews exact bytes, logs every live TX/RX event, sends no automatic commands, and blocks ASCII T in all input formats. See [operator instructions](docs/python-investigator.txt).
 
 The console was checked offline with nine automated tests and a full 1,445-byte captured-stream replay. No physical port was opened during development. Live operation remains unverified; the operator requested offline work until ready. Session logs are stored in sessions/ and ignored by Git until selected for evidence.
+
+## Final interface design plan
+
+The [draft webpage plan](docs/final-webpage-plan.txt) maps the original Settings, Test Config, Home, Start/Stop and Save Data workflow to a browser interface, with mode-specific fields, explicit configuration acknowledgment, recoverable saves and actionable communication errors. Machine controls remain gated on protocol verification.

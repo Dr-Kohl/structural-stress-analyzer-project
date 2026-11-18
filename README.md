@@ -1,5 +1,7 @@
 # Structural Stress Analyzer Project
 
+**Resume here:** [November 18 handoff and latest hardware findings](docs/HANDOFF-2026-11-18.md).
+
 A local workspace and diagnostic tools for replacing the Structural Stress Analyzer 1000 software. The browser workspace supports offline replay and an **experimental live Web Serial interface**. The separate Python investigator has communicated with the tester. Browser controls have been tested with simulated ports; live browser/hardware validation is still required.
 
 ## Open the workspace

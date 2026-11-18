@@ -31,24 +31,24 @@ class LiveSession{
    this.setupWaiter={resolve:()=>{clearTimeout(timer);this.setupWaiter=null;resolve();},reject:error=>{clearTimeout(timer);this.setupWaiter=null;reject(error);},modeReply};
   });
  }
- async configureIncremental(){
+ async configureIncremental({interaction='explicit-confirmation'}={}){
   if(!this.canPrepareTest)throw new Error('Configure Incremental only while idle before a new test.');
   this.setupState='selecting';this.setupError='';this.mode='unknown';this.incrementalStep=null;this.update();
   const reply=this.waitForSetup(3000,true);reply.catch(()=>{});
   try{
    this.event('incremental_setup_requested',{increment_lb:10});
-   await this.send('I',{reason:'incremental-setup'});await reply;
+   await this.send('I',{reason:'incremental-setup',interaction});await reply;
    if(this.phase!=='connected'||this.setupState!=='selecting')throw new Error('Incremental setup interrupted.');
    this.setupState='settling';this.update();await this.waitForSetup(400);
    if(this.phase!=='connected'||this.setupState!=='settling')throw new Error('Incremental setup interrupted.');
-   this.setupState='parameter';await this.send('MI010\r',{reason:'incremental-setup'});
+   this.setupState='parameter';await this.send('MI010\r',{reason:'incremental-setup',interaction});
    if(this.phase!=='connected'||this.setupState!=='parameter')throw new Error('Incremental setup interrupted.');
    this.setupState='ready';this.mode='incremental';this.machine='Incremental 10 lb setup sent — parameter acceptance unconfirmed';
    this.event('incremental_setup_sent',{increment_lb:10,parameter_acknowledged:false});
   }catch(error){this.cancelSetup(error.message);this.setupState='failed';this.setupError=error.message;this.mode='unknown';try{this.event('incremental_setup_failed',{message:error.message});}catch{}throw error;}
   finally{this.update();}
  }
- async resumeIncrement({motionConfirmed=false,pauseConfirmed=false}={}){return this.send('T',{motionConfirmed,pauseConfirmed,resume:true});}
+ async resumeIncrement({motionConfirmed=false,pauseConfirmed=false,interaction='explicit-confirmation'}={}){return this.send('T',{motionConfirmed,pauseConfirmed,resume:true,interaction});}
  armSoftwareStop(value){
   if(!this.canPrepareTest)throw new Error('Arm only while idle before Start, or after the previous test has completed and any return has finished.');
   if(this.softwareStop?.status==='armed')throw new Error('Disarm before changing the threshold.');
@@ -183,7 +183,7 @@ class LiveSession{
   this.event('record',{text:visible(new Uint8Array(Array.from(line,c=>c.charCodeAt(0))))});
   if(m)this.checkSoftwareStop(this.samples.at(-1));
  }
- async send(command,{motionConfirmed=false,reason='manual',resume=false,pauseConfirmed=false}={}){
+ async send(command,{motionConfirmed=false,reason='manual',resume=false,pauseConfirmed=false,interaction='explicit-confirmation'}={}){
   const parameter=command==='MI010\r'&&reason==='incremental-setup'&&this.setupState==='parameter';
   if(!Object.hasOwn(COMMANDS,command)&&!parameter)throw new Error('Only the six observed command bytes are available; parameter writes require the Incremental setup sequence.');
   if(this.phase!=='connected'||this.closing)throw new Error('Connect before sending a command.');
@@ -199,7 +199,7 @@ class LiveSession{
    if(command==='S'&&this.configuring){this.setupState='failed';this.cancelSetup('Stop interrupted Incremental setup; no further configuration bytes will be sent.');}
    if(command==='S'&&this.incrementalStep)this.incrementalStep.phase='stopping';
    if(command==='H'&&this.incrementalHomeAvailable){
-    this.event('incremental_home_requested',{step:this.incrementalStep.number,physical_pause_confirmed_by:'operator',unloaded_state_verified:false});
+    this.event('incremental_home_requested',{step:this.incrementalStep.number,interaction,physical_pause_confirmed_by:interaction==='button-click'?null:'operator',physical_pause_verified:false,unloaded_state_verified:false});
     this.incrementalStep.phase='homing';this.finishSoftwareStop('Operator requested Home from Incremental pause');
    }
    if(['C','I'].includes(command)){this.mode='unknown';this.modeSelection=command;if(command==='C'){this.incrementalStep=null;this.setupState='idle';this.setupError='';}}
@@ -211,11 +211,11 @@ class LiveSession{
    }
    if(command==='T'&&this.mode==='incremental'){
     const step=resume?this.incrementalStep.number+1:1;
-    if(resume)this.event('incremental_pause_confirmed',{step:step-1,confirmed_by:'operator'});
+    if(resume)this.event(interaction==='button-click'?'incremental_continue_clicked':'incremental_pause_confirmed',{step:step-1,interaction,physical_pause_verified:false,...(interaction==='button-click'?{}:{confirmed_by:'operator'})});
     this.incrementalStep={number:step,phase:'pending',marker:null,readingReceived:false};this.event('incremental_step_requested',{step,resume,increment_lb:10});
    }
    const bytes=new Uint8Array(Array.from(command,c=>c.charCodeAt(0))),label=parameter?'Incremental 10 lb parameter':resume?'Continue increment request':COMMANDS[command];
-   this.event('tx_attempt',{hex:hex(bytes),text:visible(bytes),byte_count:bytes.length,reason,
+   this.event('tx_attempt',{hex:hex(bytes),text:visible(bytes),byte_count:bytes.length,reason,interaction,
     ...(command==='T'?{software_stop_threshold_lb:this.softwareStop?.status==='armed'?this.softwareStop.thresholdLb:null}:{})});
    const pending=label+' pending — outcome unconfirmed';this.machine=pending;
    if(command==='T'){this.starting=true;this.testIssued=true;}
@@ -223,7 +223,7 @@ class LiveSession{
    writer=this.port.writable.getWriter();await writer.write(bytes);
    this.txHex+=hex(bytes);
    if(this.machine===pending)this.machine=label+' sent — outcome unconfirmed';
-   this.event('tx_result',{hex:hex(bytes),text:visible(bytes),byte_count:bytes.length,reason,host_write_completed:true,acknowledged_by_tester:false});
+   this.event('tx_result',{hex:hex(bytes),text:visible(bytes),byte_count:bytes.length,reason,interaction,host_write_completed:true,acknowledged_by_tester:false});
   }catch(error){try{writer?.releaseLock();}catch{}writer=null;await this.fail('Write/logging failed; delivery may be unknown: '+error.message);throw error;}
   finally{try{writer?.releaseLock();}catch{}this.busy=false;this.update();void this.flushSoftwareStop();}
  }

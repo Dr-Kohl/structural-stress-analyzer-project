@@ -28,9 +28,8 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.equal(await page.locator('#open-data').isDisabled(),true);
   await page.locator('#live-version-query').click();await page.waitForFunction(()=>__ssaFake.writes.length===1);
   await page.evaluate(()=>{__ssaFake.rx('V4');__ssaFake.rx('.0\r');});await page.waitForFunction(()=>document.getElementById('live-version').textContent==='4.0');
-  await page.locator('#machine-start').click();assert.equal(await page.locator('#motion-send').isDisabled(),true);
-  await page.locator('#motion-dialog [data-close]').first().click();assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[86]]);
-  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  assert.equal(await page.locator('#motion-dialog').count(),0);assert.equal(await page.locator('#software-stop-consent').count(),0);assert.equal(await page.evaluate(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented;}),false);
+  await page.locator('#machine-start').click();
   await page.waitForFunction(()=>__ssaFake.writes.length===2);assert.equal(await page.locator('#machine-start').isDisabled(),true);
   await page.evaluate(()=>{__ssaFake.rx('D\r004');__ssaFake.rx('3,0114\r0043,0113\r');});
   await page.waitForFunction(()=>document.getElementById('count').textContent==='2');assert.equal(await page.locator('#force').textContent(),'113');assert.equal(await page.locator('#peak').textContent(),'114');
@@ -64,7 +63,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   // Replay the actual wood-trial RX chunks in a fresh mock session, not hardware.
   await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
-  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#machine-start').click();
   await page.waitForFunction(()=>document.getElementById('machine-start').disabled);
   const wood=await fs.readFile(path.join(root,'evidence/2026-11-18/ssa-wood-maximum-force-snapshot.jsonl'),'utf8');
   const woodChunks=wood.trim().split('\n').map(JSON.parse).filter(e=>e.event==='rx').map(e=>Buffer.from(e.hex,'hex').toString('latin1'));
@@ -77,7 +76,6 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.equal(await page.locator('#machine-home').isDisabled(),false);assert.equal(await page.locator('#machine-start').isDisabled(),true);
   assert.equal(await page.evaluate(()=>__ssaFake.writes.length),before,'TM must not automatically send Home/Stop or retry');
   await page.locator('#live-version-query').click();await page.evaluate(()=>__ssaFake.rx('V4.0\r'));assert.equal(await page.locator('#live-limit-notice').isVisible(),true);
-  await page.locator('#machine-home').click();assert.equal(await page.locator('#motion-send').isDisabled(),true);await page.locator('#motion-dialog [data-close]').first().click();
   await page.locator('#save-data').click();const limitExportEvent=page.waitForEvent('download');await page.locator('[data-export=session]').click();
   const limitDl=await limitExportEvent,limitFile=path.join(work,'force-limit.session.json');await limitDl.saveAs(limitFile);
   const limitArchive=JSON.parse(await fs.readFile(limitFile,'utf8'));assert.equal(limitArchive.samples.length,37);
@@ -94,7 +92,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   // Real active-stop recording: TU is followed by a separate firmware Home report.
   await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
-  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#machine-start').click();
   await page.waitForFunction(()=>__ssaFake.writes.length===1);
   const stopRows=(await fs.readFile(path.join(root,'evidence/2026-11-18/ssa-observed-active-stop-return-home.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);
   const firstStop=stopRows.findIndex(e=>e.event==='tx_attempt'&&e.text==='S'),tu=stopRows.findIndex(e=>e.event==='record'&&e.text==='TU');
@@ -128,16 +126,16 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   // Software threshold requires explicit arming and never follows the local draft.
   await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
-  assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);assert.equal(await page.locator('#software-stop-arm').isDisabled(),true);
-  await page.locator('#software-stop-value').fill('60');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);assert.equal(await page.locator('#software-stop-arm').isDisabled(),false);
+  await page.locator('#software-stop-value').fill('60');await page.locator('#software-stop-arm').click();
   assert.match(await page.locator('#software-stop-status').textContent(),/Armed at 60/);assert.equal(await page.locator('#software-stop-value').isDisabled(),true);
   assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[],'arming must not transmit hardware-setting bytes');
   await page.locator('#software-stop-disarm').click();assert.match(await page.locator('#software-stop-status').textContent(),/Disarmed/);
-  await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  await page.locator('#software-stop-arm').click();
   await page.locator('#test-config').click();await page.locator('[name=globalMax]').fill('450');await page.getByRole('button',{name:'Save local draft',exact:true}).click();
   assert.match(await page.locator('#software-stop-status').textContent(),/Armed at 60/);
-  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/ARMED at 60 lb/);
-  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#machine-start').click();
+
   await page.waitForFunction(()=>__ssaFake.writes.length===1);
   await page.evaluate(()=>__ssaFake.rx('D\r0001,0044\r0002,0064\r0003,0080\r0004,0100\r'));
   await page.waitForFunction(()=>__ssaFake.writes.length===2);await page.waitForFunction(()=>document.getElementById('software-stop-status').textContent.includes('S host write completed'));
@@ -158,27 +156,27 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   // Fresh connection never restores arming. Failed automatic write is not retried.
   await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);
-  await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
-  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();
   await page.waitForFunction(()=>__ssaFake.writes.length===1);await page.evaluate(()=>{__ssaFake.failWrite=true;__ssaFake.rx('0001,0070\r');});
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='fault');await page.waitForFunction(()=>document.getElementById('software-stop-status').textContent.includes('FAILED'));
   assert.equal(await page.locator('#count').textContent(),'1');assert.equal(await page.locator('#machine-start').isDisabled(),true);assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[84]]);assert.deepEqual(errors,[]);
   console.log('PASS: explicit software threshold arming; no setting writes; locked value independent of draft; exactly one S; crossing audit/export/recovery; no rearming on reconnect; visible no-retry failure; desktop/mobile layout.');
-  console.log('PASS: simulated serial connect without writes; version; confirmed single Start; unverified S; fragmented live plot; exact log/session export; 4 layouts; clean disconnect; recovery; no auto-reconnect; unplug data retention.');
+  console.log('PASS: simulated serial connect without writes; version; one-click Start; unverified S; fragmented live plot; exact log/session export; 4 layouts; clean disconnect; recovery; no auto-reconnect; unplug data retention.');
   // Two threshold-assisted tests and a manual Stop share the same connection.
   await page.reload();await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
   assert.deepEqual(await page.evaluate(()=>[__ssaFake.requests,__ssaFake.opens,__ssaFake.writes.length]),[1,1,0]);
   assert.deepEqual(await page.evaluate(()=>__ssaFake.signals),[{dataTerminalReady:true,requestToSend:true}]);
-  await page.locator('#software-stop-value').fill('60');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
-  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#software-stop-value').fill('60');await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();
   await page.evaluate(()=>__ssaFake.rx('D\r0001,0047\r0002,0070\r'));await page.waitForFunction(()=>__ssaFake.writes.length===2);
   await page.evaluate(()=>__ssaFake.rx('TU\r'));await page.waitForFunction(()=>!document.getElementById('live-stop-notice').hidden);
   assert.equal(await page.locator('#machine-start').isDisabled(),true);
   await page.evaluate(()=>__ssaFake.rx('H\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
-  await page.locator('#software-stop-value').fill('100');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
-  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/ARMED at 100 lb/);
-  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#software-stop-value').fill('100');await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();
+
   assert.equal(await page.locator('#count').textContent(),'0');assert.equal(await page.locator('#force').textContent(),'—');
   await page.evaluate(()=>__ssaFake.rx('D\r0001,0094\r0002,0118\r'));await page.waitForFunction(()=>__ssaFake.writes.length===4);
   await page.evaluate(()=>__ssaFake.rx('TU\rH\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
@@ -191,8 +189,8 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.deepEqual(multiRows.filter(e=>e.event==='software_stop_triggered').map(e=>e.reading.force_lb),[70,118]);
   assert.match(Buffer.from(multiArchive.raw.rxHex,'hex').toString(),/0001,0047/);assert.equal(multiArchive.raw.txHex,'54535453');
   await page.locator('#save-dialog [data-close]').first().click();
-  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/NOT ARMED/);
-  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#machine-start').click();
+
   await page.evaluate(()=>__ssaFake.rx('D\r0001,0200\r'));await page.waitForFunction(()=>document.getElementById('count').textContent==='1');
   assert.equal(await page.evaluate(()=>__ssaFake.writes.length),5,'previous threshold must not automatically rearm');
   await page.locator('#machine-stop').click();await page.evaluate(()=>__ssaFake.rx('TU\rH\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
@@ -200,26 +198,24 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[84],[83],[84],[83],[84],[83]]);assert.deepEqual(errors,[]);
   await page.screenshot({path:path.join(work,'multiple-tests-desktop.png'),fullPage:true});
   await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
-  console.log('PASS: direct picker with cancellation; three Starts/Stops on one port; wait for Home; fresh graph; per-test threshold consent; complete multi-test raw export; no automatic rearm or reconnect.');
+  console.log('PASS: direct picker with cancellation; three Starts/Stops on one port; wait for Home; fresh graph; per-test threshold arming; complete multi-test raw export; no automatic rearm or reconnect.');
   // Operator-driven Incremental: captured setup, distinct Continue, one graph.
   await page.reload();await page.evaluate(()=>__ssaFake.autoIncrementalAck=true);await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
   await page.locator('#live-incremental').click();
-  await page.waitForFunction(()=>document.getElementById('live-mode-status').textContent.includes('Ready for one confirmed Start'));
+  await page.waitForFunction(()=>document.getElementById('live-mode-status').textContent.includes('Ready for Start'));
   assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[73],[77,73,48,49,48,13]],'setup is I, I CR reply, then MI010 CR without T');
-  await page.locator('#software-stop-value').fill('200');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
-  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/Incremental 10 lb setup/);
-  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#software-stop-value').fill('200');await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();
+
   await page.evaluate(()=>__ssaFake.rx('D\r0000,0000\r'));await page.waitForFunction(()=>document.getElementById('count').textContent==='1');
   assert.equal(await page.locator('#machine-continue').isDisabled(),true);
   await page.evaluate(()=>__ssaFake.rx('0001,0057\r'));await page.waitForFunction(()=>!document.getElementById('machine-continue').disabled);
   assert.equal(await page.locator('#machine-start').isDisabled(),true);
-  await page.locator('#machine-continue').click();assert.equal(await page.locator('#motion-send').isDisabled(),true);
-  assert.match(await page.locator('#motion-ready-label').textContent(),/physically paused/);
-  await page.locator('#motion-dialog [data-close]').first().click();assert.equal(await page.evaluate(()=>__ssaFake.writes.length),3);
+  await page.evaluate(()=>document.getElementById('machine-continue').dispatchEvent(new MouseEvent('click',{bubbles:true,detail:2})));assert.equal(await page.evaluate(()=>__ssaFake.writes.length),3,'double-click second event must not send another command');
   for(const reading of ['0003,0132','0005,0176','0006,0214']){
-   await page.locator('#machine-continue').click();assert.equal(await page.locator('#motion-ready').isChecked(),false);
-   await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+   await page.locator('#machine-continue').click();
+
    assert.equal(await page.locator('#machine-continue').isDisabled(),true);
    await page.evaluate(()=>__ssaFake.rx('I'));await page.evaluate(()=>__ssaFake.rx('D\r'));
    assert.equal(await page.locator('#machine-continue').isDisabled(),true,'ID alone is not a physical pause');
@@ -235,7 +231,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   const incDl=await incExport,incFile=path.join(work,'incremental.session.json');await incDl.saveAs(incFile);const incArchive=JSON.parse(await fs.readFile(incFile,'utf8'));
   assert.deepEqual(incArchive.samples.map(s=>s.force_lb),[0,57,132,176,214]);assert.match(incArchive.source.description,/Incremental 10 lb requested; 4 step requests/);
   const incRows=incArchive.raw.logText.trim().split('\n').map(JSON.parse);
-  assert.equal(incRows.filter(e=>e.event==='test_started').length,1);assert.equal(incRows.filter(e=>e.event==='incremental_pause_confirmed').length,3);
+  assert.equal(incRows.filter(e=>e.event==='test_started').length,1);assert.equal(incRows.filter(e=>e.event==='incremental_continue_clicked').length,3);assert.equal(incRows.some(e=>e.event==='incremental_pause_confirmed'),false);assert.equal(incRows.filter(e=>e.event==='incremental_continue_clicked').every(e=>e.physical_pause_verified===false),true);
   assert.equal(incRows.filter(e=>e.event==='software_stop_triggered').length,1);
   await page.locator('#save-dialog [data-close]').first().click();
   await page.screenshot({path:path.join(work,'incremental-desktop.png'),fullPage:true});
@@ -244,30 +240,27 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.setViewportSize({width:1366,height:1000});await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
   await page.locator('#live-review').click();await page.reload();assert.match(await page.locator('#source-label').textContent(),/Incremental 10 lb requested/);
   assert.equal(await page.locator('#machine-continue').isDisabled(),true);assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.deepEqual(errors,[]);
-  console.log('PASS: captured Incremental setup; confirmed manual Continue; ID/data boundary; four steps on one graph; software stop across steps; audit/export/recovery; no auto-resume; desktop/mobile.');
+  console.log('PASS: captured Incremental setup; one-click Continue; ID/data boundary; four steps on one graph; software stop across steps; audit/export/recovery; no auto-resume; desktop/mobile.');
   // Regression: S echo at an Incremental pause must not trap the Home control.
   await page.evaluate(()=>__ssaFake.autoIncrementalAck=true);await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');await page.locator('#live-incremental').click();
-  await page.waitForFunction(()=>document.getElementById('live-mode-status').textContent.includes('Ready for one confirmed Start'));
-  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.waitForFunction(()=>document.getElementById('live-mode-status').textContent.includes('Ready for Start'));
+  await page.locator('#machine-start').click();
   await page.evaluate(()=>__ssaFake.rx('D\r0000,0000\r'));await page.waitForFunction(()=>document.getElementById('count').textContent==='1');
   assert.equal(await page.locator('#machine-home').isDisabled(),true);
   await page.evaluate(()=>__ssaFake.rx('0001,0066\r'));await page.waitForFunction(()=>!document.getElementById('machine-home').disabled);
   await page.locator('#machine-stop').click();await page.evaluate(()=>__ssaFake.rx('S\r'));await page.waitForFunction(()=>document.getElementById('live-status').textContent.includes('S reply'));
   assert.equal(await page.locator('#machine-continue').isDisabled(),true);assert.equal(await page.locator('#machine-home').isDisabled(),false);
-  await page.locator('#machine-home').click();assert.equal(await page.locator('#motion-send').isDisabled(),true);
-  assert.match(await page.locator('#motion-ready-label').textContent(),/physically paused/);assert.match(await page.locator('#motion-description').textContent(),/acceptance|not yet verified/);
-  await page.locator('#motion-dialog [data-close]').first().click();assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[73],[77,73,48,49,48,13],[84],[83]]);
-  await page.locator('#machine-home').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.locator('#machine-home').click();
   await page.waitForFunction(()=>__ssaFake.writes.at(-1)[0]===72);assert.equal(await page.locator('#machine-start').isDisabled(),true);assert.equal(await page.locator('#machine-home').isDisabled(),true);
   await page.locator('#live-version-query').click();await page.evaluate(()=>__ssaFake.rx('V4.0\r'));await page.waitForFunction(()=>document.getElementById('live-version').textContent==='4.0');
   assert.equal(await page.locator('#machine-start').isDisabled(),true,'a version reply does not complete Home');
   await page.evaluate(()=>__ssaFake.rx('H\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
   assert.equal(await page.locator('#count').textContent(),'2');assert.equal(await page.locator('#force').textContent(),'66');
   assert.match(await page.locator('#live-mode-status').textContent(),/retained test readings, not current load/);
-  const recovery=await page.evaluate(()=>localStorage.getItem('ssa.live.recovery.v1'));assert.match(recovery,/incremental_home_requested/);
+  const recovery=await page.evaluate(()=>localStorage.getItem('ssa.live.recovery.v1'));assert.match(recovery,/incremental_home_requested/);const homeRequest=recovery.trim().split('\n').map(JSON.parse).find(e=>e.event==='incremental_home_requested');assert.equal(homeRequest.interaction,'button-click');assert.equal(homeRequest.physical_pause_confirmed_by,null);
   assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[73],[77,73,48,49,48,13],[84],[83],[72],[86]]);assert.deepEqual(errors,[]);
   await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
-  console.log('PASS: Home available after completed increment and S echo; physical-pause confirmation; one H; no automatic retry; version alone does not unlock; H report releases guard and retains test readings.');
+  console.log('PASS: Home available after completed increment and S echo; one-click operator request; one H; no automatic retry; version alone does not unlock; H report releases guard and retains test readings.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

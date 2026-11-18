@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id),KEY='ssa.live.recovery.v1';
-let live=null,opening=false,pendingCommand=null,renderTimer=null,lastSampleCount=0,lastEntryCount=0,lastTestIndex=0,recovered='';
+let live=null,opening=false,renderTimer=null,lastSampleCount=0,lastEntryCount=0,lastTestIndex=0,recovered='';
 try{recovered=localStorage.getItem(KEY)||'';}catch{}
 const download=(value,name,type='application/x-ndjson')=>{
  const url=URL.createObjectURL(new Blob([value],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
@@ -12,11 +12,10 @@ function render(){
  $('live-panel').hidden=false;$('live-phase').textContent=live.phase;
  $('rail-connection').textContent=connected?'Serial port open':live.phase==='connecting'?'Connecting':'No device connected';
  $('rail-machine').textContent=live.machine;$('live-status').textContent=live.error?live.error+' Connection state is unknown; physical motion may continue.':live.machine;
- if(lastTestIndex!==live.testIndex){lastTestIndex=live.testIndex;lastSampleCount=0;lastEntryCount=0;$('software-stop-consent').checked=false;window.SSAView.beginLive();}
+ if(lastTestIndex!==live.testIndex){lastTestIndex=live.testIndex;lastSampleCount=0;lastEntryCount=0;window.SSAView.beginLive();}
  const stop=live.softwareStop,canArm=live.canPrepareTest;
  $('software-stop-value').disabled=!canArm||stop?.status==='armed';
- $('software-stop-consent').disabled=!canArm||stop?.status==='armed';
- $('software-stop-arm').disabled=!canArm||stop?.status==='armed'||!$('software-stop-consent').checked;
+ $('software-stop-arm').disabled=!canArm||stop?.status==='armed';
  $('software-stop-disarm').disabled=!canArm||stop?.status!=='armed';
  let stopStatus='Not armed — no automatic force-triggered Stop.';
  if(stop){
@@ -47,7 +46,7 @@ function render(){
  }
  $('live-version').textContent=live.version||'Not queried';$('live-last').textContent=live.lastReceived?new Date(live.lastReceived).toLocaleTimeString():'No received bytes';
  const step=live.incrementalStep;
- $('live-mode-status').textContent=live.configuring?'Setting Incremental 10 lb: '+live.setupState+'; no Start sent.':live.setupState==='failed'?'Incremental setup incomplete: '+live.setupError+' No automatic retry. Reconnect before trying setup again.':live.mode==='incremental'?'Incremental 10 lb requested (parameter acceptance unconfirmed). '+(step?(step.phase==='verify-pause'?'Step '+step.number+' reading received. Verify physical pause before Continue or Home; specimen may remain loaded.':step.phase==='pending'?'Step '+step.number+' pending; waiting for reply and a nonzero force reading.':step.phase==='stopping'?'Stop requested; an S reply does not confirm unloading. If the mechanism has physically paused, you can request Home.':step.phase==='homing'?'Home request sent; waiting for a reply. Position and load remain unconfirmed.':'Incremental test/return ended. Last plotted values are retained test readings, not current load.'):'Ready for one confirmed Start.'):'Instrument mode: '+(live.mode==='continuous'?'Continuous reply received':'unknown; select a mode before testing')+'.';
+ $('live-mode-status').textContent=live.configuring?'Setting Incremental 10 lb: '+live.setupState+'; no Start sent.':live.setupState==='failed'?'Incremental setup incomplete: '+live.setupError+' No automatic retry. Reconnect before trying setup again.':live.mode==='incremental'?'Incremental 10 lb requested (parameter acceptance unconfirmed). '+(step?(step.phase==='verify-pause'?'Step '+step.number+' reading received. Continue or Home available; specimen may remain loaded.':step.phase==='pending'?'Step '+step.number+' pending; waiting for reply and a nonzero force reading.':step.phase==='stopping'?'Stop requested; an S reply does not confirm unloading. If the mechanism has physically paused, you can request Home.':step.phase==='homing'?'Home request sent; waiting for a reply. Position and load remain unconfirmed.':'Incremental test/return ended. Last plotted values are retained test readings, not current load.'):'Ready for Start.'):'Instrument mode: '+(live.mode==='continuous'?'Continuous reply received':'unknown; select a mode before testing')+'.';
  $('machine-continue').disabled=!live.canResume;
  $('live-bytes').textContent='TX '+live.txHex.length/2+' · RX '+live.rxHex.length/2;
  $('connection').disabled=opening||!['disconnected','fault'].includes(live.phase);
@@ -57,14 +56,14 @@ function render(){
  $('live-version-query').disabled=!free;
  for(const id of ['live-continuous','live-incremental'])$(id).disabled=!free||live.configuring||live.starting||live.awaitingHome||live.homing;
  $('live-review').disabled=!['disconnected','fault'].includes(live.phase);
- $('machine-help').textContent=connected?'Research controls. Stop request is unverified; physical power remains the fallback. Draft limits are not applied.':'Machine state unknown. Connect deliberately; no automatic Home or Start.';
+ $('machine-help').textContent=connected?'Buttons send immediately. See session status for replies.':'Connect to enable instrument controls.';
  $('live-transcript').textContent=live.entries.slice(-60).map(e=>Number(e.elapsed_s).toFixed(3)+' '+e.event+(e.text!==undefined?' '+e.text:'')+(e.message?' '+e.message:'')).join('\n');
  $('live-recovered-log').hidden=!recovered;
  if(live.samples.length&&(lastSampleCount!==live.samples.length||lastEntryCount!==live.entries.length)){lastSampleCount=live.samples.length;lastEntryCount=live.entries.length;window.SSAView.receiveLive(live);}
 }
 function update(){if(!renderTimer)renderTimer=setTimeout(()=>{renderTimer=null;render();},80);}
 async function issue(command,motionConfirmed=false){
- try{if(command==='R')await live.resumeIncrement({motionConfirmed,pauseConfirmed:motionConfirmed});else await live.send(command,{motionConfirmed,pauseConfirmed:command==='H'&&motionConfirmed});}
+ try{const sending=command==='R'?live.resumeIncrement({motionConfirmed,pauseConfirmed:motionConfirmed,interaction:'button-click'}):live.send(command,{motionConfirmed,pauseConfirmed:command==='H'&&motionConfirmed,interaction:'button-click'});render();await sending;}
  catch(error){$('live-log-status').textContent=error.message;}
  render();
 }
@@ -82,7 +81,7 @@ $('connection').addEventListener('click',async()=>{
   if(recovered)localStorage.setItem(KEY+'.previous',recovered);
   localStorage.setItem(KEY,'');
   live=new SSALive.LiveSession({save:log=>{localStorage.setItem(KEY,log);$('live-log-status').textContent='Browser recovery updated; download the live log for a portable copy. Recovery is not a disk-write guarantee.';},onUpdate:update});
-  $('software-stop-consent').checked=false;$('software-stop-error').hidden=true;
+  $('software-stop-error').hidden=true;
   lastSampleCount=0;lastEntryCount=0;lastTestIndex=0;window.SSAView.beginLive();
   await live.connect(port,{dtr:true,rts:true});
  }catch(e){
@@ -93,37 +92,20 @@ $('disconnect').addEventListener('click',async()=>{if(!live||live.busy)return;aw
 $('live-review').addEventListener('click',()=>{window.SSAView.finishLive(live);$('live-review').disabled=true;});
 $('live-version-query').addEventListener('click',()=>issue('V'));
 $('live-continuous').addEventListener('click',()=>issue('C'));
-$('live-incremental').addEventListener('click',async()=>{try{await live.configureIncremental();}catch(error){$('live-log-status').textContent=error.message;}render();});
+$('live-incremental').addEventListener('click',async()=>{try{await live.configureIncremental({interaction:'button-click'});}catch(error){$('live-log-status').textContent=error.message;}render();});
 $('machine-stop').addEventListener('click',()=>issue('S'));
-$('software-stop-consent').addEventListener('change',render);
 $('software-stop-arm').addEventListener('click',()=>{
- try{if(!$('software-stop-consent').checked)throw new Error('Confirm the automatic S request before arming.');live.armSoftwareStop($('software-stop-value').value);$('software-stop-error').hidden=true;}
+ try{live.armSoftwareStop($('software-stop-value').value);$('software-stop-error').hidden=true;}
  catch(error){$('software-stop-error').textContent=error.message;$('software-stop-error').hidden=false;}render();
 });
 $('software-stop-disarm').addEventListener('click',()=>{
- try{live.disarmSoftwareStop();$('software-stop-consent').checked=false;}
+ try{live.disarmSoftwareStop();}
  catch(error){$('software-stop-error').textContent=error.message;$('software-stop-error').hidden=false;}render();
 });
-function confirmMotion(command){
- if(!live||live.phase!=='connected'||live.busy||live.configuring||live.awaitingHome||live.homing||(command==='R'?!live.canResume:command==='H'?!live.canHome:live.starting)||(command==='T'&&!live.canStart))return;
- pendingCommand=command;$('motion-title').textContent=command==='H'?'Request Home':command==='R'?'Continue one increment':'Start a physical test';
- $('motion-ready-label').textContent=command==='H'&&live.incrementalHomeAvailable?'I confirm the mechanism has physically paused, the guard is closed, I am clear of the loaded specimen and ready for return movement, and I can cut physical power.':command==='R'?'I confirm the mechanism has physically paused, the guard is closed, I am clear of the loaded specimen and ready for one more increment, and I can cut physical power.':'I am ready for movement, the mechanism is clear, the device settings are appropriate, and I can cut physical power.';
- $('motion-description').textContent=command==='H'?'Send H once. The mechanism may move toward home. No automatic follow-up command is sent.':'Send T once. The tester may pull the specimen to failure using its current instrument settings. This does not apply the webpage’s configuration draft. Save or download this session before any destructive test.';
- if(command==='H'&&live.incrementalHomeAvailable)$('motion-description').textContent='Send H once to request return from this Incremental pause. This may move the mechanism and change the specimen load. Its behavior in this state is not yet verified. No automatic retry is sent. An H reply alone does not verify that the specimen is unloaded.';
- if(command==='R')$('motion-description').textContent='Send T once to advance the existing Incremental test. All earlier steps stay on the graph. The requested increment is 10 lb, but actual force increases can be much larger. A received reading does not prove the mechanism has stopped. Do not touch the loaded specimen.';
- if(command==='T'&&live.mode==='incremental')$('motion-description').textContent+=' Incremental 10 lb setup was requested; this starts the first step. Its acceptance and actual stopping force are not verified.';
- if(command==='T'||command==='R')$('motion-description').textContent+=' '+(live.softwareStop?.status==='armed'?'Software stop threshold is ARMED at '+live.softwareStop.thresholdLb+' lb. It can overshoot and is not a hardware or safety limit.':'Software stop threshold is NOT ARMED. No automatic force-triggered Stop will be sent.');
- $('motion-ready').checked=false;$('motion-send').disabled=true;$('motion-dialog').showModal();
+// Each deliberate button click is the operator's command; no confirmation dialog.
+for(const [id,command] of [['machine-home','H'],['machine-start','T'],['machine-continue','R']]){
+ $(id).addEventListener('click',event=>{if(event.detail>1)return;issue(command,true);});
 }
-$('machine-home').addEventListener('click',()=>confirmMotion('H'));
-$('machine-start').addEventListener('click',()=>confirmMotion('T'));
-$('machine-continue').addEventListener('click',()=>confirmMotion('R'));
-$('motion-ready').addEventListener('change',()=>{$('motion-send').disabled=!$('motion-ready').checked;});
-$('motion-send').addEventListener('click',()=>{
- if(!$('motion-ready').checked||!pendingCommand)return;
- const command=pendingCommand;pendingCommand=null;$('motion-dialog').close();issue(command,true);
-});
-$('motion-dialog').addEventListener('close',()=>{pendingCommand=null;$('motion-ready').checked=false;});
 $('live-save-log').addEventListener('click',()=>{
  if(!live)return;download(live.log(),'ssa-browser-live-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jsonl');
  $('live-log-status').textContent='Live log download requested. Check your browser downloads; the connection is unchanged.';
@@ -131,7 +113,4 @@ $('live-save-log').addEventListener('click',()=>{
 try{recovered=localStorage.getItem(KEY)||localStorage.getItem(KEY+'.previous')||'';}catch{}
 if(recovered){$('live-panel').hidden=false;$('live-recovered-log').hidden=false;$('live-log-status').textContent='A previous live log is recoverable. Download it before replacing browser data. No device is connected.';}
 $('live-recovered-log').addEventListener('click',()=>download(recovered,'ssa-browser-recovered.jsonl'));
-window.addEventListener('beforeunload',event=>{
- if(live&&['connected','connecting','disconnecting'].includes(live.phase)){event.preventDefault();event.returnValue='';}
-});
 })();

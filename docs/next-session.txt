@@ -1,3 +1,9 @@
+LATEST UPDATE — Python investigator now implemented
+Launch launch-investigator.cmd. Instructions: docs/python-investigator.txt. Code: tools/serial_probe.py and tools/probe_core.py. Tests: tests/test_probe.py. Dependency pyserial 3.5 is installed in the ignored .venv environment. The bundled Python Tk resources were copied under .venv/tcl for this machine; standard Python installations normally already include working Tk resources.
+Nine hardware-free tests passed. The real captured stream replayed fully in the GUI: 1445 bytes, zero TX attempts, no physical port opened. New logs are in ignored sessions/; preserve chosen live sessions into evidence before committing.
+The operator explicitly said the tester is NOT READY yet and asked to keep working offline. Do not connect or send commands until that changes. The window is left disconnected; readiness unchecked. T remains blocked.
+The earlier state description below is the supper-time handoff, retained as historical context. Its statement that no Python console exists is now superseded.
+
 Next session — Structural Stress Analyzer Project
 Session date: November 17, 2026
 

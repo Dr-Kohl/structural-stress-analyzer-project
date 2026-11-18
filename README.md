@@ -103,3 +103,9 @@ After closing SSA and power-cycling the tester, startup H received H followed by
 ## Resuming the project
 
 Start with [the next-session handoff](docs/next-session.txt) for the latest evidence, unresolved parameter exchange, application/hardware state, and suggested next steps.
+
+## Python command investigator
+
+Double-click launch-investigator.cmd to open the manual diagnostic window. It starts disconnected, has an offline replay of the real captured serial stream, previews exact bytes, logs every live TX/RX event, sends no automatic commands, and blocks ASCII T in all input formats. See [operator instructions](docs/python-investigator.txt).
+
+The console was checked offline with nine automated tests and a full 1,445-byte captured-stream replay. No physical port was opened during development. Live operation remains unverified; the operator requested offline work until ready. Session logs are stored in sessions/ and ignored by Git until selected for evidence.

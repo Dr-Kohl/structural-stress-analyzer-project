@@ -1,0 +1,66 @@
+Python command investigator
+
+Launch
+Double-click launch-investigator.cmd in the repository root.
+The window starts disconnected. No serial port is opened and no startup command is sent.
+A portable Python launcher environment lives in .venv and is intentionally not committed.
+Dependency: pyserial 3.5, listed in requirements-probe.txt.
+To recreate the environment with an installed Python:
+  python -m venv .venv
+  .venv\Scripts\python.exe -m pip install -r requirements-probe.txt
+  .venv\Scripts\python.exe tools\serial_probe.py
+
+Offline use
+Replay saved capture reads the real 1,445-byte device-to-host stream without opening hardware.
+Replay uses arbitrary 37-byte chunks at accelerated demonstration speed; it is not a simulation of new tester replies and does not reproduce recorded timing. The browser app remains the timing-aware replay.
+Log entries are labeled offline_rx. All 144 numeric records plus D/TT markers remain intact.
+Use the command entry to inspect byte previews while disconnected. Sending is disabled.
+
+Live use — operator selects every action
+Close SSA first so it releases the port.
+Have the mechanism unloaded and clear. Opening a serial port can change DTR/RTS and may affect machine state even without a serial write.
+Select the actual COM port, confirm readiness in the checkbox, then Connect.
+Connection settings are 9600 baud / 8 data bits / no parity / 1 stop bit, with no XON/XOFF, RTS/CTS or DSR/DTR flow control.
+DTR and RTS default on to match the captured application state. The checkboxes only set preferences before opening; no live line toggling controls are provided.
+Setting signals before open cannot guarantee the OS/driver will not briefly change them.
+No H, T, C, I, probe sweep, reset, buffer purge, or serial break is sent automatically.
+Receive data is displayed and logged until Disconnect or window close.
+
+Manual transmission
+Enter exactly one chosen command/message, inspect the HEX and TEXT preview, then click Send once.
+No line ending is appended unless explicitly chosen. ASCII input understands \r, \n, \t, \\, and \xHH. Hex input accepts complete byte pairs.
+Maximum message length is 32 bytes. ASCII T (hex 54) is blocked anywhere in the decoded message, including hex and escape inputs, following the operator's explicit instruction not to start a test.
+Blocking T does not establish that any other character is harmless. H may home the mechanism; unknown commands may change settings or move it.
+The entry clears after a successful host write to reduce unintended repeats.
+No keyboard Enter shortcut or automatic retry sends data.
+A successful serial write means only that the host accepted the bytes; it is NOT a tester acknowledgment.
+On a partial write, write/read error, or logging failure, the connection is closed. Delivery may be unknown. No retry occurs.
+Disconnect sends no serial shutdown command, but closing the port can change control signals.
+This is a diagnostic tool, not a machine Start/Stop interface. No verified stop command is implemented.
+
+Logs and preservation
+Every connection/offline replay creates a new sessions/ssa-*.jsonl file.
+Each event has UTC and monotonic elapsed time; byte events include exact hexadecimal data, visible text and byte count.
+TX intent is flushed before any write. TX results, RX chunks, manual notes, failures, pending bytes and connection settings are retained.
+JSONL contains raw received bytes even if a CR-terminated record is incomplete. Read-chunk boundaries are not treated as record boundaries.
+Flush protects against normal application buffering; it is not a power-loss guarantee.
+sessions/ is ignored by Git to avoid committing transient device logs accidentally. After a useful experiment, copy selected logs into a new evidence session, inspect them, hash them and commit.
+Save visible transcript exports the display as text; JSONL remains the authoritative exact-byte record.
+Ordinary RX bytes are immediately flushed to JSONL before display. On a disk/logging failure, the tool reports it and stops rather than continuing unlogged.
+
+Known evidence / unresolved behavior
+C was associated with Continuous and initially received C<CR>.
+I was associated with Incremental, received I<CR>, then SSA sent MI020<CR>.
+After MI020, no more replies were observed in that session, including to final C. MI025 and MI026 were NOT sent.
+A power cycle plus SSA restart restored H -> H<CR>. The cause of the prior silence is unresolved.
+Do not automatically replay this setup or treat a guessed letter as Stop.
+See docs/configuration-investigation.txt and docs/recovery-after-power-cycle.txt.
+
+Verification
+  .venv\Scripts\python.exe -m unittest discover -s tests -p test_probe.py -v
+Tests use fake ports, temporary files under work/, and the captured stream. They do not open physical ports.
+
+Implementation reference
+https://pyserial.readthedocs.io/en/latest/pyserial_api.html
+
+Runtime note: this machine uses a bundled Python runtime. Local Tcl/Tk resource copies under .venv/tcl resolve its GUI startup path. They are ignored environment files, not project source. A standard Python + tkinter installation generally does not need this workaround.

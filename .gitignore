@@ -22,3 +22,6 @@ desktop.ini
 
 # Redundant distribution archives
 *.zip
+
+# Transient diagnostic logs; preserve selected sessions explicitly.
+/sessions/

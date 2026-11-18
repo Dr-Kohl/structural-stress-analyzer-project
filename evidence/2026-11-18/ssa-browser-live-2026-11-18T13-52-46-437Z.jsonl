@@ -1,0 +1,17 @@
+{"utc":"2026-11-18T13:50:08.768Z","elapsed_s":0.00019999992847442627,"event":"session","kind":"live","baud":9600,"data_bits":8,"parity":"none","stop_bits":1,"flow_control":"none","dtr":true,"rts":true,"units":"SAE inches/pounds","usbProductId":9123,"usbVendorId":1659}
+{"utc":"2026-11-18T13:50:08.768Z","elapsed_s":0.00029999995231628417,"event":"open_attempt"}
+{"utc":"2026-11-18T13:50:08.856Z","elapsed_s":0.08859999990463256,"event":"opened","startup_bytes_sent":0}
+{"utc":"2026-11-18T13:50:29.550Z","elapsed_s":20.782099999904634,"event":"tx_attempt","hex":"48","text":"H","byte_count":1}
+{"utc":"2026-11-18T13:50:29.550Z","elapsed_s":20.782399999976157,"event":"tx_result","hex":"48","text":"H","byte_count":1,"host_write_completed":true,"acknowledged_by_tester":false}
+{"utc":"2026-11-18T13:50:44.005Z","elapsed_s":35.235099999904634,"event":"tx_attempt","hex":"48","text":"H","byte_count":1}
+{"utc":"2026-11-18T13:50:44.005Z","elapsed_s":35.235599999904636,"event":"tx_result","hex":"48","text":"H","byte_count":1,"host_write_completed":true,"acknowledged_by_tester":false}
+{"utc":"2026-11-18T13:50:56.902Z","elapsed_s":48.132599999904635,"event":"tx_attempt","hex":"48","text":"H","byte_count":1}
+{"utc":"2026-11-18T13:50:56.903Z","elapsed_s":48.13309999990463,"event":"tx_result","hex":"48","text":"H","byte_count":1,"host_write_completed":true,"acknowledged_by_tester":false}
+{"utc":"2026-11-18T13:51:41.744Z","elapsed_s":92.97229999995231,"event":"tx_attempt","hex":"56","text":"V","byte_count":1}
+{"utc":"2026-11-18T13:51:41.745Z","elapsed_s":92.97279999995231,"event":"tx_result","hex":"56","text":"V","byte_count":1,"host_write_completed":true,"acknowledged_by_tester":false}
+{"utc":"2026-11-18T13:51:41.757Z","elapsed_s":92.98529999995232,"event":"rx","hex":"56","text":"V","byte_count":1}
+{"utc":"2026-11-18T13:51:41.758Z","elapsed_s":92.98609999990464,"event":"rx","hex":"34","text":"4","byte_count":1}
+{"utc":"2026-11-18T13:51:41.759Z","elapsed_s":92.98709999990463,"event":"rx","hex":"2e","text":".","byte_count":1}
+{"utc":"2026-11-18T13:51:41.760Z","elapsed_s":92.98829999995232,"event":"rx","hex":"30","text":"0","byte_count":1}
+{"utc":"2026-11-18T13:51:41.761Z","elapsed_s":92.98919999992847,"event":"rx","hex":"0d","text":"\\r","byte_count":1}
+{"utc":"2026-11-18T13:51:41.761Z","elapsed_s":92.98969999992848,"event":"record","text":"V4.0"}

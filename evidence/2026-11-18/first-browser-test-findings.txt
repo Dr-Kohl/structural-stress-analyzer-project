@@ -1,0 +1,5 @@
+First real browser-started run — November 18, 2026
+
+Source: ssa-first-browser-test-snapshot.jsonl, downloaded while the browser remained connected. Version V received V4.0<CR>. Browser sent one bare T. Device replied D<CR>, then 0008,0000<CR>, then about 4.57 seconds later 0001,0074<CR>. Under the existing observed decoder these are 0 lb at 0.008 in and 74 lb at 0.001 in. No TT<CR> test-end marker and no further serial bytes appear in this snapshot. TX total 2 (V,T), RX total 27.
+
+Operator verbally reported approximately 105/102 lb and 0.003 in on the instrument and suspected grip slip. The serial values differ; do not overwrite them with the verbal readings or conclude fracture/slip/travel limit from this trace. Earlier Python I selection and no browser C command make Incremental pause a possibility; actual device mode/force setting must be checked. The webpage configuration is only a draft. No browser S or H had been sent when this snapshot was downloaded. Do not tighten a loaded specimen. Further physical state and any homing action need operator confirmation.

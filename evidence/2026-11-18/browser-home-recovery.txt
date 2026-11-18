@@ -1,0 +1,9 @@
+November 18, 2026 — browser Home / reset recovery
+
+After the first two-measurement browser test, the operator reported no visible change on S requests; browser status showed S reply but no TT end marker. Home was disabled by the browser test-pending guard. Operator downloaded the log, disconnected/reconnected, and sent Home requests. The new session showed no Home replies, but a subsequent version query returned 4.0, so this was not a complete serial communications lockup. The operator downloaded that log and disconnected again.
+
+Operator then power-cycled the tester. LCD said Press Start to go home. Operator pressed the physical Start button and reports the machine returned home. This is the documented context-dependent physical-button action (Setup and User Guide p3); do not generalize it to the ready-to-test screen, where Start begins a cycle. No browser H success after this reset has yet been verified. The earlier ignored H requests are state-specific or otherwise unresolved. Exact reset/homing times were not recorded in serial logs.
+
+Next useful check: identify actual front-panel mode and force setting before another test; draft Continuous/500 in the browser is not evidence of device configuration. Earlier I commands make an Incremental pause a hypothesis. No further Start should be sent automatically.
+
+Follow-up confirmed by operator: after reset and physical homing, Select showed Incremental on the tester. This supports the Incremental-pause explanation for the short run but does not independently prove the exact stop condition, explain serial/LCD measurement differences, or verify S stopping behavior. Browser Continuous/500 remained only a local draft. Check device Continuous selection and actual maximum-force setting before the next deliberate test.

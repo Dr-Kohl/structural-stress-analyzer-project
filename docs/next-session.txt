@@ -1,6 +1,22 @@
-LATEST UPDATE — public GitHub repository
+CURRENT HANDOFF — November 17, 2026 — GitHub Pages live; resume Python tester at machine
+Project folder: C:\Users\Dr_Kohl\Documents\Codex\2026-11-17\r\outputs\structural-stress-analyzer-project
+Browser workspace: https://dr-kohl.github.io/structural-stress-analyzer-project/
+Public repository: https://github.com/Dr-Kohl/structural-stress-analyzer-project
+GitHub Pages deploys main / (root); .nojekyll preserves plain static hosting. Deployment of commit 6c9c0a5 succeeded. The live page loaded all 144 original readings; the peak shortcut showed 114 lb at 0.043 inches / reading 44, and CSV export reported Download requested. README includes the live link. Local main and origin/main were synchronized before this handoff update.
+The user approved the hosted layout and requested a pause until back at the machine. No replacement software has connected to the instrument. No new hardware commands or measurements were obtained during this offline work. Home/Start/Stop/Disconnect remain disabled in the webpage. Hosted browser recovery and local-file recovery are separate; use Complete session JSON for a portable recording.
+
+NEXT SESSION — Python command investigator, one command at a time
+1. Read docs/python-investigator.txt, docs/configuration-investigation.txt and docs/recovery-after-power-cycle.txt. Launch launch-investigator.cmd; it starts disconnected. Use Replay saved capture first if a refresher is useful.
+2. Wait for the operator to be back at the tester and confirm SSA is closed, the machine is powered, unloaded and clear, and it is acceptable for port opening/control signals to change its state. Re-identify the actual COM port; COM4 is historical. Do not open a port based on the earlier authorization to work offline.
+3. Connect at the documented 9600 8N1 settings only after readiness is confirmed. Observe and log unsolicited bytes first; no command is sent automatically.
+4. Agree on one exact message and expected observation before each manual Send. A possible first evidence-backed exchange is bare H (hex 48, no terminator), but H can home the mechanism and requires the operator ready for that motion. Prior recovery replied H<CR>. Record actual results without assuming the device state.
+5. Continue only from observed responses. Do not perform an A–Z sweep or automatically replay I / MI020: the previous session went silent after MI020 and the cause remains unknown. Stop/abort, cyclic commands, numeric parameter acceptance and global-limit enforcement remain unverified. T stays blocked in the Python console; no test start is planned.
+6. Add notes identifying each operator action, command bytes, response and machine display. On silence or uncertain delivery, stop and inspect the log rather than retrying automatically. Preserve informative JSONL logs from ignored sessions/ in a new evidence directory, review them for publication, create SHA-256 hashes, then commit and push selected evidence and findings. The webpage can import measurement-bearing Python JSONL files.
+No new live experiment is authorized until the operator confirms readiness at the machine. The Python console has passed nine hardware-free tests and offline capture replay, but remains untested against the real device. Existing original evidence must remain unchanged.
+
+EARLIER UPDATE — public GitHub repository
 Repository: https://github.com/Dr-Kohl/structural-stress-analyzer-project
-The user authorized a new public repository. Publish the complete local main history, including selected original evidence and the offline browser workspace, with origin pointing to this repository. No open-source license has been selected. Vendor manuals/installers and ignored runtime/session files remain outside Git.
+The complete local main history was published, including selected original evidence and the offline browser workspace, with origin pointing to this repository. No open-source license has been selected. Vendor manuals/installers and ignored runtime/session files remain outside Git.
 The current hardware restriction is unchanged: work offline until the operator has access to the tester and confirms readiness. Historical local-only/publication statements below are superseded by this update.
 
 LATEST UPDATE — familiar offline browser workspace implemented

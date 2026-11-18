@@ -3,7 +3,7 @@
 function summarize(samples){
  if(!samples.length) throw new Error('No measurements loaded');
  const peak=samples.reduce((best,s)=>s.force_lb>best.force_lb?s:best,samples[0]);
- const lastPositive=samples.reduce((last,s,i)=>s.force_lb>0?i:last,-1);
+ const lastPositive=samples.reduce((last,s,i)=>s.force_lb!==0?i:last,-1);
  return {peak,tailStart:lastPositive<0?0:Math.min(lastPositive+1,samples.length-1),duration:samples.at(-1).time_s};
 }
 function indexAtTime(samples,time){
@@ -28,7 +28,7 @@ class SerialParser{
 }
 function toCsv(samples){
  const keys=['sample_index','time_s','displacement_in','force_lb','raw_field_1','raw_field_2','first_frame','last_frame'];
- return keys.join(',')+'\r\n'+samples.map(s=>keys.map(k=>'"'+String(s[k]).replace(/"/g,'""')+'"').join(',')).join('\r\n')+'\r\n';
+ return keys.join(',')+'\r\n'+samples.map(s=>keys.map(k=>'"'+String(s[k]??'').replace(/"/g,'""')+'"').join(',')).join('\r\n')+'\r\n';
 }
 const api={summarize,indexAtTime,SerialParser,toCsv};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.SSAModel=api;

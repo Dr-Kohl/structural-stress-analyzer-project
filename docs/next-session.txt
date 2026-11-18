@@ -1,3 +1,10 @@
+LATEST UPDATE — familiar offline browser workspace implemented
+Open index.html in Edge/Chrome. The new familiar action rail, Settings and mode-specific local Test Config drafts are implemented. Home/Start/Stop/Disconnect remain disabled; no browser serial API or live machine control exists.
+Offline features: original test replay; metadata; local draft settings; CSV/raw-text/session-JSON/Python-JSONL import; complete-session and CSV export; SVG/PNG graph export; raw evidence export; browser recovery; explicit save/download status; nonblocking communication-fault preview.
+Validation: 13 model/data tests passed; headless Edge workflow checks passed for metadata/drafts/recovery, all exports, imports and invalid-file retention, replay, widths 1366/768/375/320, storage/destination failure and corrupt recovery retention. No runtime errors, external HTTP requests or hardware API access were observed. Screenshots/check outputs are in ignored work/browser-check/.
+The user currently has no access to the machine and requested offline development. Do not connect or send commands. The Python investigator is unchanged and remains the future operator-controlled research tool.
+Read README.md for the current feature set and tests. The older notes below are historical and may describe features as not yet implemented.
+
 LATEST UPDATE — Python investigator now implemented
 Launch launch-investigator.cmd. Instructions: docs/python-investigator.txt. Code: tools/serial_probe.py and tools/probe_core.py. Tests: tests/test_probe.py. Dependency pyserial 3.5 is installed in the ignored .venv environment. The bundled Python Tk resources were copied under .venv/tcl for this machine; standard Python installations normally already include working Tk resources.
 Nine hardware-free tests passed. The real captured stream replayed fully in the GUI: 1445 bytes, zero TX attempts, no physical port opened. New logs are in ignored sessions/; preserve chosen live sessions into evidence before committing.

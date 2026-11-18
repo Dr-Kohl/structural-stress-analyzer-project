@@ -1,85 +1,108 @@
 # Structural Stress Analyzer Project
 
-A replacement interface and data logger for the Structural Stress Analyzer 1000.
+A local workspace and diagnostic tools for replacing the Structural Stress Analyzer 1000 software. The browser workspace currently operates **offline only**. No replacement software has connected to or commanded the tester.
 
-The immediate aim is to preserve the captured protocol and test data, then build an offline replay and plotting interface before testing a replacement connection to the instrument.
+## Open the workspace
 
-## Current state
+Double-click **index.html** in Microsoft Edge or Chrome. Keep the project folder together. No server, installation, internet connection, or build step is needed for the webpage.
 
-- Local Git repository; no remote or GitHub repository configured.
-- Original startup capture and one destructive sample-test capture preserved.
-- 144 measurement records reconstructed from the serial stream.
-- Peak of 114 lb at 0.043 in matches the operator's displayed result.
-- No replacement software has connected to or commanded the tester.
-- Offline browser replay is implemented and opens directly from index.html; no server, installation, or network connection is required.
+The familiar left column contains Settings, Test Config, Home, Start Test, Stop Test, Save Data, Disconnect, and Session details. **Home/Start/Stop/Disconnect are disabled**: the page has no serial API implementation or machine controls.
 
-## Run the local replay
+### What works now
 
-Open index.html in Microsoft Edge or Chrome, or double-click it in File Explorer. Keep index.html, styles.css, model.js, capture-data.js, and app.js together in this project folder.
+- Replay the original 144 readings with the captured arrival timing, including the initial pause. Pause, reset, change speed, or scrub by reading.
+- Inspect the graph or jump to the confirmed **114 lb at 0.043 inches** peak.
+- Show/hide the zero-force tail or fit the complete recording. Hiding data on screen never removes it from exports.
+- Save session descriptions: name, operator, material, specimen and notes.
+- Edit a **local configuration draft** for Continuous, Incremental or Cyclic mode. Applicable fields enable by mode; configuration is never represented as applied to hardware.
+- Import the evidence CSV, CR-delimited raw serial text, a complete session archive, or measurement-bearing Python investigator JSONL logs.
+- Export every measurement as CSV, the current graph as SVG or PNG, raw evidence as JSON, or a complete reopenable session as JSON.
+- Retain a browser recovery copy, with explicit warnings when storage is unavailable or a saved copy is unreadable.
+- Preview a nonblocking communication fault while keeping the graph, source data and export controls usable.
 
-The page initially shows all 144 readings. Use Replay test to animate from the beginning, Pause to inspect, Reset to return to the first reading, and the slider to move to any reading. Speed choices are 0.5x, 1x, 2x, and 4x. The initial three-second gap in the capture is retained.
+The original recording remains in the evidence folder. **Original capture** reloads its unchanged embedded fixture. Browser recovery is local to that browser/profile and file location; it is not a portable backup.
 
-Inspect peak jumps to reading 44: 114 lb at 0.043 in. Hover over the graph to inspect readings. Uncheck Show zero-force tail to focus the horizontal axis on the loaded portion.
+### Saving and opening recordings
 
-Export measurements saves all 144 readings, including raw fields and packet references, regardless of the playback position or chart view. Save graph exports the currently visible graph as an SVG. The page has no serial connection or machine controls.
+Use **Save Data → Complete session** for a portable copy of measurements, descriptions, draft configuration, raw bytes where supplied, and activity. Open it later with **Open data**.
 
-### Verify the implementation
+CSV/session exports always contain the full recording. SVG/PNG exports contain the currently revealed graph and chart range.
 
-With Node.js available, run:
+Browser downloads are available without a file-system API. The page reports **Download requested**, since it cannot confirm the browser's disk write. Where supported, select **Ask where to save** to use a file picker and confirm completion of the chosen file write. Canceling or failing a save leaves the data available.
+
+Supported imports (up to 10 MB and 100,000 readings):
+
+- CSV with `displacement_in` and `force_lb` headers. Optional `time_s`, packet references and raw numeric fields are retained. The original evidence CSV's `first_time_relative_s` is recognized.
+- Raw ASCII records in the observed `dddd,ffff\r` format. Exact bytes are retained. An incomplete final record is rejected without replacing the current recording.
+- Complete workspace `*.session.json` archives (schema version 1).
+- Python investigator `*.jsonl` logs containing RX measurement records. Original log text and raw RX/TX-result bytes are retained, including unfinished tails. Logs without measurement records remain evidence files rather than graphable recordings.
+
+Imported data without timestamps use a clearly labeled paced replay; synthetic pacing is never written into the measurement timestamps. Raw-evidence-only JSON is an evidence export, not a complete reopenable session.
+
+All graph units are **inches and pounds**. Import does not perform unit conversion. The data are force/displacement, not specimen stress/strain. No calibration or material-property calculation is claimed.
+
+## Verification
+
+Data/model tests need Node.js:
 
 ```powershell
-node --test tests/model.test.cjs
+node --test tests/model.test.cjs tests/workspace.test.cjs
 node --check app.js
 ```
 
-Checks compare every replay value with the original captured serial stream, exercise every possible two-chunk split plus byte-at-a-time parsing, preserve incomplete and unknown records, check peak/tail/timing, and verify complete CSV output.
+These compare the original data and exact serial bytes, preserve repeated positions and tail readings, test stream chunk boundaries, validate configuration, round-trip sessions/CSV, reject invalid files, and check chart ranges.
 
-## Connection and protocol findings
+An optional end-to-end check uses Playwright and a fresh **headless** Edge profile:
 
-The instrument appears as a Prolific USB serial adapter (observed COM4, VID 067B, PID 23A3). The final captured application configuration is **9600 baud, 8 data bits, no parity, 1 stop bit**.
+```powershell
+node tests/browser-check.cjs
+```
 
-| Observed exchange | Computer sends | Instrument returns |
-| --- | --- | --- |
-| Startup | ASCII H, without a line ending | U followed by CR, then H followed by CR |
-| Recorded test | ASCII T, without a line ending | D followed by CR, numeric records, then TT followed by CR |
+Playwright must be available through normal module resolution or `NODE_PATH`; `SSA_BROWSER_PATH` can override the default Windows Edge executable. Browser checks cover dialogs, draft fields, recovery/reload, all graph/session exports, imports and malformed files, replay completion, storage/save failures, corrupted recovery preservation, and 1366/768/375/320 px layouts. They reject instrument API access and check for external HTTP requests. Screenshots and downloaded checks go under ignored `work/browser-check/`.
 
-A numeric record such as `0043,0114\r` corresponds to 0.043 inches and 114 pounds. The first integer is divided by 1000 to interpret displacement in inches. Each observed record ends with CR (0x0D).
+## Python command investigator
 
-The precise physical effects of H and T have not been isolated. Stop, calibration, configuration, and other machine operations remain unverified. Do not implement a machine Stop button using a guessed command.
+Double-click **launch-investigator.cmd** for the separate diagnostic window. Instructions: [docs/python-investigator.txt](docs/python-investigator.txt).
 
-## Preserved evidence
+It starts disconnected, previews exact bytes, sends only an explicitly chosen message, blocks ASCII T in every input format, and logs TX attempts/results and RX chunks. There is no automatic startup command, alphabet sweep or retry after uncertain delivery. Its offline replay uses the real captured stream.
 
-All evidence lives in [evidence/2026-11-17](evidence/2026-11-17/).
+pySerial 3.5 is installed in the ignored project `.venv` environment. Nine hardware-free tests are available:
 
-- [Protocol analysis](evidence/2026-11-17/ssa1000-protocol-analysis.txt): settings, exact exchanges, packet references, timing, limitations, and next steps.
-- [Startup capture](evidence/2026-11-17/ssa1000-startup.pcapng): 353 packets.
-- [Sample test capture](evidence/2026-11-17/ssa1000-sample-break-2026-11-17.pcapng): 2,913 packets, zero reported drops.
-- [Recovered measurements](evidence/2026-11-17/ssa1000-recovered-measurements.csv): values, USB receive times, and packet references.
-- [Exact incoming serial stream](evidence/2026-11-17/ssa1000-device-to-host.txt) and [outgoing stream](evidence/2026-11-17/ssa1000-host-to-device.txt).
-- [Graph and export-error screenshot](evidence/2026-11-17/ssa1000-test-screen-and-export-error.png).
-- Packet-level TSV exports, preservation notes, and SHA-256 manifests.
+```powershell
+.venv\Scripts\python.exe -m unittest discover -s tests -p test_probe.py -v
+```
 
-Evidence files are copied byte for byte from the preserved session outputs. Git line-ending conversion is disabled for the evidence directory so the recorded checksums remain valid. The earlier ZIP bundle is not duplicated inside Git; its individual contents are tracked.
+Transient logs go under ignored `sessions/`. After an informative experiment, inspect, copy, hash and commit selected logs into a new evidence session. The Python console has not yet been tested against this instrument.
 
-The CSV was reconstructed from USB traffic. It is not an SSA-generated export. The old application showed a file-opening error while attempting to export to a path at the root of C:.
+## Preserved evidence and current findings
 
-## Next development steps
+See [evidence/2026-11-17](evidence/2026-11-17/) and [the next-session handoff](docs/next-session.txt).
 
-1. Completed: replay the saved stream offline and reproduce the force/displacement curve.
-2. Parser implemented and tested offline: arbitrary chunk sizes, CR records, known markers, and retained unknown/incomplete text. Connect it to a future live reader.
-3. Add raw-session logging and reliable measurement export.
-4. Add a Web Serial connection using the existing Windows adapter driver.
-5. Verify connection signals and command behavior under operator-controlled conditions before enabling machine control.
+- Original startup capture (353 packets) and sample-break capture (2,913 packets, zero reported drops).
+- All 144 reconstructed readings, exact test serial streams, packet exports, original screenshots, and SHA-256 manifests.
+- Configuration investigation (97 packets) and successful recovery capture (65 packets).
+- [Protocol analysis](evidence/2026-11-17/ssa1000-protocol-analysis.txt), [configuration findings](docs/configuration-investigation.txt), [recovery findings](docs/recovery-after-power-cycle.txt), and [installed software/manual investigation](docs/installed-software-investigation.txt).
 
-Direct browser communication appears feasible with Web Serial in Chrome on Windows. See [Chrome's Web Serial documentation](https://developer.chrome.com/docs/capabilities/serial).
+Observed connection: Prolific USB serial adapter (COM4 during capture, VID 067B / PID 23A3), final application setting **9600 8N1**.
 
-## Before a public release
+| Operation in the original software | Observed bytes |
+| --- | --- |
+| Startup | H; replies U + CR then H + CR when homing, or H + CR when already home |
+| Recorded sample test | T; replies D + CR, decimal measurement records, TT + CR |
+| Continuous configuration | C; initially replied C + CR |
+| Initial Incremental selection | I; replied I + CR, then SSA sent MI020 + CR |
 
-The repository currently preserves the original evidence, including computer paths, USB device identifiers, and a screenshot of the vendor's software. Review these before publishing and consider whether public evidence should be redacted or replaced by a synthetic fixture. This repository does not include the vendor's executable or installer.
+**Unresolved:** no serial replies appeared after MI020. Attempts at 25/26 only sent I; MI025 and MI026 were never captured. The final C was unacknowledged. Closing SSA and power-cycling the tester restored H → H + CR, without establishing the cause. Global 450/500 changes only sent C; ownership/enforcement of the limit remains unverified. Stop/abort, cyclic commands, calibration and full command semantics remain unknown.
 
-No open-source license has been selected yet.
+The [final webpage plan](docs/final-webpage-plan.txt) describes the intended live interface. The familiar offline layout is now implemented; live connection/configuration and machine actions still require individual verification with the operator present. No hardware access is needed to continue work on offline features.
 
-## Local workflow
+## Local Git and public release
+
+All project source and selected evidence are committed locally. No remote is configured and nothing has been published to GitHub. Do not change original evidence; its directory disables line-ending conversion to preserve hashes.
+
+The vendor PDFs are saved separately beside the project in `ssa1000-reference-manuals`. The executable and installer remain outside Git.
+
+Before publication, review evidence for user paths, USB identifiers, and vendor screenshots. No open-source license has been selected.
 
 ```powershell
 git status
@@ -87,29 +110,3 @@ git log --oneline
 git add <specific changed files>
 git commit -m "Describe the change"
 ```
-
-Keep the original evidence unchanged. Put derived analyses and generated results in new files. A GitHub remote can be added later when publication is requested.
-
-## Configuration investigation update
-
-See [the configuration investigation](docs/configuration-investigation.txt) and its preserved capture. Applying Continuous sent C and initially received C followed by CR. Selecting Incremental sent I, received I followed by CR, then sent MI020 followed by CR for the 20 lb setting. The 450/500 global-limit changes sent no numeric limit value.
-
-No serial replies were captured after MI020. Subsequent attempts to set 25/26 sent only I, and the final return to Continuous sent C without a reply. The GUI baseline was restored by the operator; firmware state remains unconfirmed. Re-establish an acknowledged known state before further machine operation.
-
-## Recovery update
-
-After closing SSA and power-cycling the tester, startup H received H followed by CR again. The operator reported the LCD ready to begin a cycle. See [recovery evidence](docs/recovery-after-power-cycle.txt). Communication recovered; the cause of the preceding silence and mode/limit behavior remain unresolved. No new test was started.
-
-## Resuming the project
-
-Start with [the next-session handoff](docs/next-session.txt) for the latest evidence, unresolved parameter exchange, application/hardware state, and suggested next steps.
-
-## Python command investigator
-
-Double-click launch-investigator.cmd to open the manual diagnostic window. It starts disconnected, has an offline replay of the real captured serial stream, previews exact bytes, logs every live TX/RX event, sends no automatic commands, and blocks ASCII T in all input formats. See [operator instructions](docs/python-investigator.txt).
-
-The console was checked offline with nine automated tests and a full 1,445-byte captured-stream replay. No physical port was opened during development. Live operation remains unverified; the operator requested offline work until ready. Session logs are stored in sessions/ and ignored by Git until selected for evidence.
-
-## Final interface design plan
-
-The [draft webpage plan](docs/final-webpage-plan.txt) maps the original Settings, Test Config, Home, Start/Stop and Save Data workflow to a browser interface, with mode-specific fields, explicit configuration acknowledgment, recoverable saves and actionable communication errors. Machine controls remain gated on protocol verification.

@@ -1,3 +1,6 @@
+IMPLEMENTATION UPDATE — November 18, 2026
+After this review, the user authorized an experimental armed software threshold. It is now implemented and tested offline; see README for arming, one-shot behavior and limitations. The analysis below remains the evidence basis and does not establish a numeric hardware-setting command. No actual automatic cutoff has yet been validated on the real tester. Historical statements below saying the feature is not implemented refer to the investigation stage.
+
 Maximum force investigation — saved evidence review
 November 18, 2026
 

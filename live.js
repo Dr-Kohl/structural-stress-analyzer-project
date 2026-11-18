@@ -8,7 +8,7 @@ class LiveSession{
  constructor({onUpdate=()=>{},save=()=>{},now=()=>performance.now(),utc=()=>new Date().toISOString()}={}){
   this.onUpdate=onUpdate;this.save=save;this.now=now;this.utc=utc;this.phase='disconnected';this.machine='Unknown';
   this.port=null;this.reader=null;this.readTask=null;this.closing=false;this.busy=false;this.starting=false;
-  this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;this.lastTestResult=null;this.stopReturn=null;
+  this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;this.lastTestResult=null;this.stopReturn=null;this.softwareStop=null;
  }
  event(event,fields={}){
   const row={utc:this.utc(),elapsed_s:Math.max(0,(this.now()-this.started)/1000),event,...fields};
@@ -16,6 +16,50 @@ class LiveSession{
  }
  log(){return this.entries.map(r=>JSON.stringify(r)).join('\n')+(this.entries.length?'\n':'');}
  get awaitingHome(){return !!this.stopReturn&&!this.stopReturn.homeReported;}
+ armSoftwareStop(value){
+  if(this.phase!=='connected'||this.busy||this.testIssued||this.starting||this.awaitingHome||this.samples.length)throw new Error('Arm only on a fresh connected session before Start or incoming measurements.');
+  if(this.softwareStop?.status==='armed')throw new Error('Disarm before changing the threshold.');
+  const threshold=Number(value);
+  if(!Number.isInteger(threshold)||threshold<10||threshold>1000)throw new Error('Choose a whole-pound threshold from 10 to 1000. This is not a guaranteed maximum.');
+  const next={thresholdLb:threshold,status:'armed',crossing:null,error:null,reason:null};
+  try{this.event('software_stop_armed',{threshold_lb:threshold,hardware_setting_sent:false});}
+  catch(error){this.softwareStop={...next,status:'failed',error:'Arming log failed: '+error.message};try{this.event('software_stop_failed',{message:this.softwareStop.error});}catch{}this.update();throw error;}
+  this.softwareStop=next;this.update();
+ }
+ disarmSoftwareStop(){
+  if(this.testIssued||this.starting||this.awaitingHome)throw new Error('The threshold cannot be changed or disarmed after Start.');
+  if(this.softwareStop?.status==='armed'){
+   this.softwareStop.status='disarmed';this.event('software_stop_disarmed',{threshold_lb:this.softwareStop.thresholdLb});this.update();
+  }
+ }
+ finishSoftwareStop(reason){
+  const stop=this.softwareStop;
+  if(stop&&['armed','triggered'].includes(stop.status)){
+   stop.status='cancelled';stop.reason=reason;
+   this.event('software_stop_cancelled',{threshold_lb:stop.thresholdLb,reason});
+  }
+ }
+ checkSoftwareStop(sample){
+  const stop=this.softwareStop;
+  if(stop?.status==='armed'&&!this.testIssued){this.finishSoftwareStop('Unexpected measurement before Start; establish a fresh idle session');return;}
+  if(this.phase!=='connected'||!this.starting||!this.testIssued||this.awaitingHome||stop?.status!=='armed'||sample.force_lb<stop.thresholdLb)return;
+  // Latch BEFORE scheduling any write: coalesced records cannot queue repeats.
+  stop.status='triggered';stop.crossing={...sample};
+  this.event('software_stop_triggered',{threshold_lb:stop.thresholdLb,reading:{...sample}});
+  void this.flushSoftwareStop();
+ }
+ async flushSoftwareStop(){
+  const stop=this.softwareStop;
+  if(stop?.status!=='triggered'||this.busy||this.closing||this.phase!=='connected')return;
+  if(!this.starting||this.awaitingHome){this.finishSoftwareStop('Test/return ended before the queued stop write');return;}
+  stop.status='sending';this.update();
+  try{
+   await this.send('S',{reason:'software-threshold'});
+   if(stop.status==='failed'||this.phase!=='connected')throw new Error('Connection fault before automatic stop completion');
+   stop.status='sent';this.event('software_stop_write_completed',{threshold_lb:stop.thresholdLb,stopped_state_verified:false});
+  }catch(error){stop.status='failed';stop.error='Automatic stop not confirmed: '+error.message;try{this.event('software_stop_failed',{message:stop.error});}catch{}}
+  this.update();
+ }
  update(){this.onUpdate(this);}
  async connect(port,{dtr=true,rts=true}={}){
   if(this.phase!=='disconnected')throw new Error('Disconnect before choosing another port.');
@@ -56,11 +100,12 @@ class LiveSession{
    this.samples.push({sample_index:this.samples.length+1,time_s:Math.max(0,(this.now()-this.started)/1000),displacement_in:Number(m[1])/1000,force_lb:Number(m[2]),raw_field_1:m[1],raw_field_2:m[2]});
    this.machine='Measurement received — motion unconfirmed';
   }else if(line==='D')this.machine='Test data marker received';
-  else if(line==='TT'){this.machine='Test end marker received';this.starting=false;}
+  else if(line==='TT'){this.machine='Test end marker received';this.starting=false;this.finishSoftwareStop('TT end marker received');}
   else if(line==='TM'){
    // Correlated with the tester's maximum-force display in the saved wood trial.
    // This ends the pending request, not a claim of stopped motion or released load.
    this.machine='Maximum-force end marker received — motion unconfirmed';this.starting=false;this.testIssued=true;
+   this.finishSoftwareStop('TM force-limit end marker received');
    this.lastTestResult={kind:'force-limit',marker:'TM',utc:this.utc(),sampleCount:this.samples.length,
     lastMeasurement:this.samples.length?{...this.samples.at(-1)}:null};
    this.event('test_result',this.lastTestResult);
@@ -69,6 +114,7 @@ class LiveSession{
    // Observed after an active S, then followed by H without a host Home send.
    // Keep motion actions blocked while waiting for that separate Home report.
    this.starting=true;this.testIssued=true;
+   this.finishSoftwareStop('TU stop-return marker received');
    this.stopReturn={kind:'stop-return',marker:'TU',utc:this.utc(),homeReported:false,homeReportUtc:null};
    this.machine='Stop-return marker received — awaiting Home reply; keep clear';
    this.event('test_result',this.stopReturn);
@@ -86,8 +132,9 @@ class LiveSession{
   else if(line==='C'||line==='I')this.machine=line+' reply received — settings unverified';
   else if(/^V[\x20-\x7e]{1,60}$/.test(line))this.version=line.slice(1);
   this.event('record',{text:visible(new Uint8Array(Array.from(line,c=>c.charCodeAt(0))))});
+  if(m)this.checkSoftwareStop(this.samples.at(-1));
  }
- async send(command,{motionConfirmed=false}={}){
+ async send(command,{motionConfirmed=false,reason='manual'}={}){
   if(!Object.hasOwn(COMMANDS,command))throw new Error('Only the six observed command bytes are available.');
   if(this.phase!=='connected'||this.closing)throw new Error('Connect before sending a command.');
   if(this.busy)throw new Error('Another write is pending; no duplicate was sent.');
@@ -96,24 +143,30 @@ class LiveSession{
   if((this.starting||this.awaitingHome)&&['H','C','I'].includes(command))throw new Error('A test or return is pending; only S or V may be sent.');
   this.busy=true;let writer;
   try{
-   this.event('tx_attempt',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1});
+   if(command==='S'&&reason!=='software-threshold'&&this.testIssued)this.finishSoftwareStop('Manual Stop request superseded automatic threshold');
+   this.event('tx_attempt',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1,reason,
+    ...(command==='T'?{software_stop_threshold_lb:this.softwareStop?.status==='armed'?this.softwareStop.thresholdLb:null}:{})});
    const pending=COMMANDS[command]+' pending — outcome unconfirmed';this.machine=pending;
    if(command==='T'){this.starting=true;this.testIssued=true;}
    writer=this.port.writable.getWriter();await writer.write(new Uint8Array([command.charCodeAt(0)]));
    this.txHex+=hex([command.charCodeAt(0)]);
    if(this.machine===pending)this.machine=COMMANDS[command]+' sent — outcome unconfirmed';
-   this.event('tx_result',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1,host_write_completed:true,acknowledged_by_tester:false});
+   this.event('tx_result',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1,reason,host_write_completed:true,acknowledged_by_tester:false});
   }catch(error){try{writer?.releaseLock();}catch{}writer=null;await this.fail('Write/logging failed; delivery may be unknown: '+error.message);throw error;}
-  finally{try{writer?.releaseLock();}catch{}this.busy=false;this.update();}
+  finally{try{writer?.releaseLock();}catch{}this.busy=false;this.update();void this.flushSoftwareStop();}
  }
  async fail(message,insideReader=false){
   this.error=message;this.machine='Unknown — communication fault';
+  if(this.softwareStop&&['armed','triggered','sending'].includes(this.softwareStop.status)){
+   this.softwareStop.status='failed';this.softwareStop.error='Software monitoring/stop not confirmed: '+message;
+  }
   try{this.event('error',{message});}catch{}
   await this.disconnect({fault:true,insideReader});
  }
  async disconnect({fault=false,insideReader=false}={}){
   if(this.closing)return;
   this.closing=true;this.phase='disconnecting';this.update();
+  try{this.finishSoftwareStop('Connection closed; software monitoring ended');}catch{}
   try{await this.reader?.cancel();}catch{}
   if(!insideReader){try{await this.readTask;}catch{}}
   else{try{this.reader?.releaseLock();}catch{}this.reader=null;}

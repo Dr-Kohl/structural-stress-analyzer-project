@@ -126,6 +126,45 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.locator('#live-review').click();await page.reload();assert.match(await page.locator('#source-label').textContent(),/Stop-return marker followed by Home reply/);
   assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.deepEqual(errors,[]);
   console.log('PASS: recorded S/TU/H replay; controls wait for Home; no host Home or repeated Start; idle S does not erase return report; export/recovery and responsive layout.');
+  // Software threshold requires explicit arming and never follows the local draft.
+  await page.locator('#connection').click();for(const id of ['live-ready','live-units','live-data-ready'])await page.locator('#'+id).check();await page.locator('#live-connect').click();
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
+  assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);assert.equal(await page.locator('#software-stop-arm').isDisabled(),true);
+  await page.locator('#software-stop-value').fill('60');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  assert.match(await page.locator('#software-stop-status').textContent(),/Armed at 60/);assert.equal(await page.locator('#software-stop-value').isDisabled(),true);
+  assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[],'arming must not transmit hardware-setting bytes');
+  await page.locator('#software-stop-disarm').click();assert.match(await page.locator('#software-stop-status').textContent(),/Disarmed/);
+  await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  await page.locator('#test-config').click();await page.locator('[name=globalMax]').fill('450');await page.getByRole('button',{name:'Save local draft',exact:true}).click();
+  assert.match(await page.locator('#software-stop-status').textContent(),/Armed at 60/);
+  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/ARMED at 60 lb/);
+  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.waitForFunction(()=>__ssaFake.writes.length===1);
+  await page.evaluate(()=>__ssaFake.rx('D\r0001,0044\r0002,0064\r0003,0080\r0004,0100\r'));
+  await page.waitForFunction(()=>__ssaFake.writes.length===2);await page.waitForFunction(()=>document.getElementById('software-stop-status').textContent.includes('S host write completed'));
+  assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[84],[83]]);assert.match(await page.locator('#software-stop-status').textContent(),/reading 2 \(64 lb\)/);
+  assert.equal(await page.locator('#software-stop-disarm').isDisabled(),true);assert.equal(await page.locator('#software-stop-value').isDisabled(),true);
+  await page.evaluate(()=>__ssaFake.rx('TU\rH\r'));await page.waitForFunction(()=>document.getElementById('machine-home').disabled===false);
+  await page.locator('#save-data').click();const thresholdExport=page.waitForEvent('download');await page.locator('[data-export=session]').click();
+  const thresholdDl=await thresholdExport,thresholdFile=path.join(work,'software-threshold.session.json');await thresholdDl.saveAs(thresholdFile);const thresholdArchive=JSON.parse(await fs.readFile(thresholdFile,'utf8'));
+  assert.match(thresholdArchive.source.description,/Software stop 60 lb: sent/);assert.match(thresholdArchive.raw.logText,/"event":"software_stop_triggered"/);assert.match(thresholdArchive.raw.logText,/"reason":"software-threshold"/);
+  assert.equal(thresholdArchive.config.globalMax,450);assert.equal(thresholdArchive.raw.txHex,'5453');assert.equal(thresholdArchive.samples.length,4);
+  await page.locator('#save-dialog [data-close]').first().click();
+  await page.screenshot({path:path.join(work,'software-threshold-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:375,height:1000});await page.screenshot({path:path.join(work,'software-threshold-mobile.png'),fullPage:true});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);await page.setViewportSize({width:1366,height:1000});
+  await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
+  await page.locator('#live-review').click();await page.reload();assert.match(await page.locator('#source-label').textContent(),/Software stop 60 lb: sent/);
+  assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);assert.equal(await page.evaluate(()=>__ssaFake.opens),0);
+  // Fresh connection never restores arming. Failed automatic write is not retried.
+  await page.locator('#connection').click();for(const id of ['live-ready','live-units','live-data-ready'])await page.locator('#'+id).check();await page.locator('#live-connect').click();
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);
+  await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.waitForFunction(()=>__ssaFake.writes.length===1);await page.evaluate(()=>{__ssaFake.failWrite=true;__ssaFake.rx('0001,0070\r');});
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='fault');await page.waitForFunction(()=>document.getElementById('software-stop-status').textContent.includes('FAILED'));
+  assert.equal(await page.locator('#count').textContent(),'1');assert.equal(await page.locator('#machine-start').isDisabled(),true);assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[84]]);assert.deepEqual(errors,[]);
+  console.log('PASS: explicit software threshold arming; no setting writes; locked value independent of draft; exactly one S; crossing audit/export/recovery; no rearming on reconnect; visible no-retry failure; desktop/mobile layout.');
   console.log('PASS: simulated serial connect without writes; version; confirmed single Start; unverified S; fragmented live plot; exact log/session export; 4 layouts; clean disconnect; recovery; no auto-reconnect; unplug data retention.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

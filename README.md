@@ -54,10 +54,22 @@ Connection uses 9600 8N1, no flow control, with explicit DTR/RTS preferences. It
 - **Start Test** sends bare `T` only after its own motion confirmation. One Start is permitted per connection; download and reconnect for another test. The user explicitly authorized implementing T on November 18. No browser test has been started on hardware during implementation.
 - **Stop request** sends bare `S`. An idle `S\r` reply has been observed; stopping actual motion is **not verified**. A request or reply must never be presented as proof that the machine stopped.
 - **Select Continuous** and **Select Incremental only** send bare `C` / `I`. These request the observed mode selections only; they do not apply any numeric fields. No MI020, cyclic command, jog command, calibration command, or guessed parameters are sent.
-- **Maximum-force research:** [saved-evidence review](docs/maximum-force-investigation.txt) supports a possible PC-side software stop threshold; no numeric hardware-setting command is established. No automatic threshold is currently implemented.
+- **Maximum-force research:** [saved-evidence review](docs/maximum-force-investigation.txt) supports a possible PC-side software stop threshold; no numeric hardware-setting command is established. The explicitly armed experimental software threshold below implements a one-shot S request, not a hardware setting.
 - **Test Config remains a local draft.** Global maximum force, incremental force, cyclic force and cycle count are not applied or enforced by this page. Start uses the instrument's current settings, which the browser cannot verify.
 
 Live data and exact RX/TX-attempt/result events are retained in browser recovery. **Download live log** preserves a JSONL file even if no measurements arrive; check the browser download completed. Recovery is not a durable disk-write guarantee. A logging failure or a read/write error closes the connection without retry; physical motion may continue. The browser warns before unloading a connected page, but cannot guarantee that a tab or computer stays open.
+
+### Experimental software stop threshold
+
+On a **fresh connected session**, choose a whole-pound **Software stop threshold** from 10 to 1000 lb, check its consent box, and click **Arm threshold** before Start. Arming sends no bytes. The page will send one bare `S` when the first complete received force reading reaches or exceeds that value during its requested test. The Start confirmation explicitly says whether the threshold is armed. This field is separate from Test Config's local draft; changing that draft does not change an armed threshold.
+
+The armed value locks until disarmed before Start. After Start it cannot be edited/disarmed. New connections and reloaded/recovered pages never restore arming automatically. Unexpected measurements before Start cancel arming and require a fresh idle session. Manual Stop supersedes the threshold to avoid an automatic duplicate. If a crossing arrives during an in-flight write, one Stop is queued until the writer releases; a terminal marker received first cancels that queued write. An uncertain/failed Stop is never retried automatically. There is no automatic Home or restart.
+
+The threshold, crossing reading, TX reason, host-write result and later device markers are saved in the exact log. Session exports/recovery retain the threshold and outcome in their source description. The original measurements and raw bytes remain unchanged, including values received after the trigger. A completed S write is not proof that force stopped or the mechanism is unloaded.
+
+**This is experimental software assistance, not a safety-rated interlock, device force-setting command, or guaranteed maximum force.** It depends on live telemetry, an executing browser tab, working storage/logging and a successful device response. Force can overshoot. Read/logging/connection failure ends monitoring and may leave motion continuing. Keep the guard closed and physical power accessible. Automatic threshold operation has passed saved-stream/fake-port tests; real under-load behavior is not yet validated.
+
+Offline 60 lb threshold replay first qualified at 70 lb in the saved aluminum run and 64 lb in the wood run. Those values identify when software could request Stop; they do not predict the final stopped force. No real machine commands were sent during implementation/testing.
 
 ### Maximum-force event (`TM`)
 

@@ -12,3 +12,5 @@ dialog{padding:0;width:min(580px,calc(100% - 28px));max-height:calc(100dvh - 40p
 .button:disabled,.inline-button:disabled{opacity:.45;cursor:not-allowed}
 
 #live-stop-notice{background:#eef3f8;border-color:#b7cad9}
+
+.software-stop-controls{background:#fff;border:1px solid #c9d7c1;border-radius:8px;padding:16px;margin:18px 0}.software-stop-controls h3{font-size:15px;margin:0 0 10px}.software-stop-controls h3 small{font-size:11px;font-weight:400;margin-left:8px}.software-stop-inputs{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px;margin:12px 0 16px}.software-stop-inputs .field{margin:0;max-width:160px}.software-stop-controls[data-status=armed]{border-color:#b49335;background:#fffbee}.software-stop-controls[data-status=failed]{border-color:#c16a5e;background:#fff0eb}.software-stop-controls[data-status=sent],.software-stop-controls[data-status=sending],.software-stop-controls[data-status=triggered]{border-color:#bd8c4f;background:#fff6e9}#software-stop-status{font-weight:600;font-size:13px;line-height:1.6}

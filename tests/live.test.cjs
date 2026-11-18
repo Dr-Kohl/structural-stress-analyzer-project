@@ -2,6 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {LiveSession}=require('../live.js');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+const settle=async()=>{for(let i=0;i<4;i++)await tick();};
 function fake(){
  const writes=[];let input;
  const port={writes,opens:[],signals:[],closes:0,getInfo:()=>({usbVendorId:0x067b,usbProductId:0x23a3}),
@@ -113,4 +114,66 @@ test('TU framing and return state are separate from an idle S reply, and preserv
  const fast=new LiveSession();await fast.connect(q);await fast.send('T',{motionConfirmed:true});
  assert.equal(fast.starting,false);assert.equal(fast.stopReturn.homeReported,true);assert.equal(fast.lastTestResult.kind,'force-limit');
  assert.match(fast.machine,/Home reply received after/);assert.equal(fast.testIssued,true);await fast.disconnect();
+});
+test('software threshold requires explicit pretest arming, validates range, and sends no setup bytes',async()=>{
+ const p=fake(),s=new LiveSession();assert.throws(()=>s.armSoftwareStop(60),/fresh connected/);await s.connect(p);
+ for(const n of [0,9,1001,60.5,NaN,Infinity,''])assert.throws(()=>s.armSoftwareStop(n),/whole-pound/);
+ s.armSoftwareStop(60);assert.deepEqual(p.writes,[]);assert.throws(()=>s.armSoftwareStop(80),/Disarm/);
+ s.disarmSoftwareStop();s.armSoftwareStop(80);await s.send('T',{motionConfirmed:true});
+ assert.throws(()=>s.disarmSoftwareStop(),/after Start/);assert.throws(()=>s.armSoftwareStop(100),/before Start/);assert.equal(s.softwareStop.thresholdLb,80);await s.disconnect();
+});
+test('one automatic S is latched on the first complete qualifying reading, with reason and exact reading logged',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);await s.send('T',{motionConfirmed:true});
+ p.rx('D\r0001,0044\r0002,006');await tick();assert.deepEqual(p.writes,[[84]]);
+ p.rx('4\r0003,0080\r0004,0100\r');await settle();
+ assert.deepEqual(p.writes,[[84],[83]]);assert.equal(s.softwareStop.status,'sent');assert.equal(s.softwareStop.crossing.force_lb,64);assert.equal(s.softwareStop.crossing.sample_index,2);
+ assert.equal(s.entries.filter(e=>e.event==='software_stop_triggered').length,1);
+ assert.equal(s.entries.find(e=>e.event==='tx_attempt'&&e.text==='S').reason,'software-threshold');
+ assert.equal(s.entries.find(e=>e.event==='tx_attempt'&&e.text==='T').software_stop_threshold_lb,60);
+ p.rx('TU\rH\r');await settle();assert.equal(s.stopReturn.homeReported,true);assert.deepEqual(p.writes,[[84],[83]]);await s.disconnect();
+});
+test('unarmed, disarmed, pre-Start and post-end readings cannot cause automatic writes',async()=>{
+ for(const state of ['unarmed','disarmed','before-start','ended']){
+  const p=fake(),s=new LiveSession();await s.connect(p);
+  if(state!=='unarmed')s.armSoftwareStop(60);
+  if(state==='disarmed')s.disarmSoftwareStop();
+  if(state!=='before-start')await s.send('T',{motionConfirmed:true});
+  if(state==='ended'){p.rx('TT\r');await tick();}
+  p.rx('0001,0090\r');await settle();assert.deepEqual(p.writes,state==='before-start'?[]:[[84]],state);
+  if(state==='before-start')assert.equal(s.softwareStop.status,'cancelled');await s.disconnect();
+ }
+});
+test('a crossing during the Start write queues exactly one S until that write releases its lock',async()=>{
+ const p=fake();let release;p.writable=new WritableStream({write(b){p.writes.push([...b]);if(b[0]===84)return new Promise(resolve=>release=resolve);}});
+ const s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);const start=s.send('T',{motionConfirmed:true});await tick();p.rx('0001,0064\r0002,0080\r');await tick();
+ assert.equal(s.softwareStop.status,'triggered');assert.deepEqual(p.writes,[[84]]);release();await start;await settle();assert.deepEqual(p.writes,[[84],[83]]);assert.equal(s.softwareStop.status,'sent');await s.disconnect();
+});
+test('an end marker cancels a queued threshold stop instead of sending after the test ended',async()=>{
+ const p=fake();let release;p.writable=new WritableStream({write(b){p.writes.push([...b]);if(b[0]===84)return new Promise(resolve=>release=resolve);}});
+ const s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);const start=s.send('T',{motionConfirmed:true});await tick();p.rx('0001,0064\rTT\r');await tick();
+ release();await start;await settle();assert.deepEqual(p.writes,[[84]]);assert.equal(s.softwareStop.status,'cancelled');assert.match(s.softwareStop.reason,/TT/);await s.disconnect();
+});
+test('manual Stop supersedes an armed threshold; later high samples do not produce a duplicate',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);await s.send('T',{motionConfirmed:true});await s.send('S');p.rx('0001,0080\r');await settle();
+ assert.deepEqual(p.writes,[[84],[83]]);assert.equal(s.softwareStop.status,'cancelled');assert.match(s.softwareStop.reason,/Manual Stop/);await s.disconnect();
+});
+test('automatic write failure is reported and never retried',async()=>{
+ const p=fake();p.writable=new WritableStream({write(b){p.writes.push([...b]);if(b[0]===83)throw new Error('auto write failed');}});
+ const s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);await s.send('T',{motionConfirmed:true});p.rx('0001,0064\r0002,0080\r');await settle();
+ assert.equal(s.phase,'fault');assert.equal(s.softwareStop.status,'failed');assert.match(s.softwareStop.error,/not confirmed/);assert.deepEqual(p.writes,[[84],[83]]);
+ assert.equal(s.entries.filter(e=>e.event==='tx_attempt'&&e.text==='S').length,1);
+});
+test('logging failure at threshold closes monitoring without falsely claiming S was sent',async()=>{
+ const p=fake(),s=new LiveSession({save(log){if(JSON.parse(log.trim().split('\n').at(-1)).event==='software_stop_triggered')throw new Error('quota');}});
+ await s.connect(p);s.armSoftwareStop(60);await s.send('T',{motionConfirmed:true});p.rx('0001,0064\r');await settle();
+ assert.equal(s.phase,'fault');assert.equal(s.softwareStop.status,'failed');assert.deepEqual(p.writes,[[84]]);
+});
+test('saved aluminum and wood streams produce one threshold decision without changing original measurements',async()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ for(const [file,force,count] of [['ssa-first-complete-browser-test.jsonl',70,148],['ssa-wood-maximum-force-snapshot.jsonl',64,37]]){
+  const rows=fs.readFileSync(path.join(__dirname,'../evidence/2026-11-18',file),'utf8').trim().split('\n').map(JSON.parse),chunks=rows.filter(e=>e.event==='rx').map(e=>e.hex);
+  const p=fake(),s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);await s.send('T',{motionConfirmed:true});
+  for(const chunk of chunks){p.rx(Buffer.from(chunk,'hex').toString('latin1'));await tick();}await settle();
+  assert.equal(s.softwareStop.crossing.force_lb,force);assert.equal(s.samples.length,count);assert.equal(s.rxHex,chunks.join(''));assert.deepEqual(p.writes,[[84],[83]]);await s.disconnect();
+ }
 });

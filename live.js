@@ -9,15 +9,18 @@ class LiveSession{
   this.onUpdate=onUpdate;this.save=save;this.now=now;this.utc=utc;this.phase='disconnected';this.machine='Unknown';
   this.port=null;this.reader=null;this.readTask=null;this.closing=false;this.busy=false;this.starting=false;
   this.entries=[];this.samples=[];this.pending='';this.rxHex='';this.txHex='';this.version='';this.lastReceived=null;this.started=now();this.bytes=0;this.testIssued=false;this.lastTestResult=null;this.stopReturn=null;this.softwareStop=null;
+  this.testIndex=0;this.testComplete=false;this.homing=false;this.requiresHome=false;
  }
  event(event,fields={}){
-  const row={utc:this.utc(),elapsed_s:Math.max(0,(this.now()-this.started)/1000),event,...fields};
+  const row={utc:this.utc(),elapsed_s:Math.max(0,(this.now()-this.started)/1000),test_index:this.testIndex,event,...fields};
   this.entries.push(row);this.save(this.log());return row;
  }
  log(){return this.entries.map(r=>JSON.stringify(r)).join('\n')+(this.entries.length?'\n':'');}
  get awaitingHome(){return !!this.stopReturn&&!this.stopReturn.homeReported;}
+ get canStart(){return this.phase==='connected'&&!this.closing&&!this.busy&&!this.starting&&!this.awaitingHome&&!this.homing&&!this.requiresHome&&!['triggered','sending'].includes(this.softwareStop?.status)&&(!this.testIssued||this.testComplete);}
+ get canPrepareTest(){return this.canStart&&(!this.samples.length||this.testComplete);}
  armSoftwareStop(value){
-  if(this.phase!=='connected'||this.busy||this.testIssued||this.starting||this.awaitingHome||this.samples.length)throw new Error('Arm only on a fresh connected session before Start or incoming measurements.');
+  if(!this.canPrepareTest)throw new Error('Arm only while idle before Start, or after the previous test has completed and any return has finished.');
   if(this.softwareStop?.status==='armed')throw new Error('Disarm before changing the threshold.');
   const threshold=Number(value);
   if(!Number.isInteger(threshold)||threshold<10||threshold>1000)throw new Error('Choose a whole-pound threshold from 10 to 1000. This is not a guaranteed maximum.');
@@ -27,7 +30,7 @@ class LiveSession{
   this.softwareStop=next;this.update();
  }
  disarmSoftwareStop(){
-  if(this.testIssued||this.starting||this.awaitingHome)throw new Error('The threshold cannot be changed or disarmed after Start.');
+  if(!this.canPrepareTest)throw new Error('The threshold cannot be changed or disarmed while a test or return is pending.');
   if(this.softwareStop?.status==='armed'){
    this.softwareStop.status='disarmed';this.event('software_stop_disarmed',{threshold_lb:this.softwareStop.thresholdLb});this.update();
   }
@@ -41,7 +44,7 @@ class LiveSession{
  }
  checkSoftwareStop(sample){
   const stop=this.softwareStop;
-  if(stop?.status==='armed'&&!this.testIssued){this.finishSoftwareStop('Unexpected measurement before Start; establish a fresh idle session');return;}
+  if(stop?.status==='armed'&&!this.starting){this.finishSoftwareStop('Unexpected measurement before Start; verify the instrument is idle');return;}
   if(this.phase!=='connected'||!this.starting||!this.testIssued||this.awaitingHome||stop?.status!=='armed'||sample.force_lb<stop.thresholdLb)return;
   // Latch BEFORE scheduling any write: coalesced records cannot queue repeats.
   stop.status='triggered';stop.crossing={...sample};
@@ -100,11 +103,11 @@ class LiveSession{
    this.samples.push({sample_index:this.samples.length+1,time_s:Math.max(0,(this.now()-this.started)/1000),displacement_in:Number(m[1])/1000,force_lb:Number(m[2]),raw_field_1:m[1],raw_field_2:m[2]});
    this.machine='Measurement received — motion unconfirmed';
   }else if(line==='D')this.machine='Test data marker received';
-  else if(line==='TT'){this.machine='Test end marker received';this.starting=false;this.finishSoftwareStop('TT end marker received');}
+  else if(line==='TT'){this.machine='Test end marker received';this.starting=false;this.testComplete=true;this.finishSoftwareStop('TT end marker received');}
   else if(line==='TM'){
    // Correlated with the tester's maximum-force display in the saved wood trial.
    // This ends the pending request, not a claim of stopped motion or released load.
-   this.machine='Maximum-force end marker received — motion unconfirmed';this.starting=false;this.testIssued=true;
+   this.machine='Maximum-force end marker received — motion unconfirmed; request Home before another test';this.starting=false;this.testIssued=true;this.testComplete=false;this.requiresHome=true;
    this.finishSoftwareStop('TM force-limit end marker received');
    this.lastTestResult={kind:'force-limit',marker:'TM',utc:this.utc(),sampleCount:this.samples.length,
     lastMeasurement:this.samples.length?{...this.samples.at(-1)}:null};
@@ -113,13 +116,15 @@ class LiveSession{
   else if(line==='TU'){
    // Observed after an active S, then followed by H without a host Home send.
    // Keep motion actions blocked while waiting for that separate Home report.
-   this.starting=true;this.testIssued=true;
+   this.starting=true;this.testIssued=true;this.testComplete=false;
    this.finishSoftwareStop('TU stop-return marker received');
    this.stopReturn={kind:'stop-return',marker:'TU',utc:this.utc(),homeReported:false,homeReportUtc:null};
    this.machine='Stop-return marker received — awaiting Home reply; keep clear';
    this.event('test_result',this.stopReturn);
   }
   else if(line==='H'){
+   this.homing=false;this.requiresHome=false;
+   if(!this.starting||this.awaitingHome)this.testComplete=true;
    this.machine='Last report: Home reply';
    if(this.stopReturn&&!this.stopReturn.homeReported){
     this.stopReturn.homeReported=true;this.stopReturn.homeReportUtc=this.utc();this.starting=false;
@@ -139,15 +144,21 @@ class LiveSession{
   if(this.phase!=='connected'||this.closing)throw new Error('Connect before sending a command.');
   if(this.busy)throw new Error('Another write is pending; no duplicate was sent.');
   if(['H','T'].includes(command)&&!motionConfirmed)throw new Error('An explicit motion confirmation is required.');
-  if(command==='T'&&this.testIssued)throw new Error('A test start was already requested, or a force-limit event or return event was received. Save and reconnect for another test.');
-  if((this.starting||this.awaitingHome)&&['H','C','I'].includes(command))throw new Error('A test or return is pending; only S or V may be sent.');
+  if(command==='T'&&!this.canStart)throw new Error('A test is already requested or a test, force-limit event or return is pending. Wait for completion; a force-limit event requires Home.');
+  if((this.starting||this.awaitingHome||this.homing)&&['H','C','I'].includes(command))throw new Error('A test or return is pending; only S or V may be sent.');
   this.busy=true;let writer;
   try{
    if(command==='S'&&reason!=='software-threshold'&&this.testIssued)this.finishSoftwareStop('Manual Stop request superseded automatic threshold');
+   if(command==='T'){
+    this.testIndex++;this.testComplete=false;this.samples=[];this.lastTestResult=null;this.stopReturn=null;
+    if(this.softwareStop?.status!=='armed')this.softwareStop=null;
+    this.event('test_started',{previous_recordings:'Retained in exact-byte log',software_stop_threshold_lb:this.softwareStop?.thresholdLb??null});
+   }
    this.event('tx_attempt',{hex:hex([command.charCodeAt(0)]),text:command,byte_count:1,reason,
     ...(command==='T'?{software_stop_threshold_lb:this.softwareStop?.status==='armed'?this.softwareStop.thresholdLb:null}:{})});
    const pending=COMMANDS[command]+' pending — outcome unconfirmed';this.machine=pending;
    if(command==='T'){this.starting=true;this.testIssued=true;}
+   if(command==='H')this.homing=true;
    writer=this.port.writable.getWriter();await writer.write(new Uint8Array([command.charCodeAt(0)]));
    this.txHex+=hex([command.charCodeAt(0)]);
    if(this.machine===pending)this.machine=COMMANDS[command]+' sent — outcome unconfirmed';

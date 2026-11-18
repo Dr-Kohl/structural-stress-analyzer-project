@@ -3,6 +3,34 @@ const assert=require('node:assert/strict');
 const {LiveSession}=require('../live.js');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const settle=async()=>{for(let i=0;i<4;i++)await tick();};
+test('multiple tests reuse one port, reset graph samples, and retain exact bytes with test boundaries',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);
+ await s.send('T',{motionConfirmed:true});p.rx('D\r0001,0047\rTT\r');await settle();
+ assert.equal(s.canStart,true);assert.equal(s.samples.length,1);
+ await s.send('T',{motionConfirmed:true});assert.equal(s.samples.length,0);assert.equal(s.testIndex,2);
+ await assert.rejects(s.send('T',{motionConfirmed:true}),/pending/);
+ p.rx('D\r0002,0070\r');await settle();await s.send('S');p.rx('S\r');await settle();assert.equal(s.canStart,false);
+ p.rx('TU\r');await settle();assert.equal(s.canStart,false);p.rx('H\r');await settle();assert.equal(s.canStart,true);
+ assert.deepEqual(s.samples.map(x=>x.force_lb),[70]);assert.equal(p.opens.length,1);assert.equal(p.closes,0);
+ assert.deepEqual(s.entries.filter(e=>e.event==='test_started').map(e=>e.test_index),[1,2]);
+ assert.match(Buffer.from(s.rxHex,'hex').toString(),/0047/);assert.match(Buffer.from(s.rxHex,'hex').toString(),/0070/);
+ assert.deepEqual(p.writes,[[84],[84],[83]]);await s.disconnect();
+});
+test('each test must arm its own threshold and terminal state permits rearming without reconnect',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);await s.send('T',{motionConfirmed:true});
+ p.rx('0001,0070\r');await settle();p.rx('TU\rH\r');await settle();assert.equal(s.canPrepareTest,true);
+ s.armSoftwareStop(100);await s.send('T',{motionConfirmed:true});p.rx('0001,0070\r0002,0118\r');await settle();
+ assert.deepEqual(p.writes,[[84],[83],[84],[83]]);p.rx('TU\rH\r');await settle();
+ await s.send('T',{motionConfirmed:true});assert.equal(s.softwareStop,null);p.rx('0001,0200\rTT\r');await settle();
+ assert.deepEqual(p.writes,[[84],[83],[84],[83],[84]]);assert.equal(p.opens.length,1);await s.disconnect();
+});
+test('maximum-force ending requires explicit Home completion before another Start',async()=>{
+ const p=fake(),s=new LiveSession();await s.connect(p);await s.send('T',{motionConfirmed:true});p.rx('TM\r');await settle();
+ assert.equal(s.canStart,false);assert.equal(s.canPrepareTest,false);await s.send('H',{motionConfirmed:true});
+ assert.equal(s.canStart,false);await assert.rejects(s.send('T',{motionConfirmed:true}),/pending/);
+ p.rx('TU\rH\r');await settle();assert.equal(s.canStart,true);await s.send('T',{motionConfirmed:true});
+ assert.equal(s.lastTestResult,null);assert.equal(s.stopReturn,null);assert.deepEqual(p.writes,[[84],[72],[84]]);await s.disconnect();
+});
 function fake(){
  const writes=[];let input;
  const port={writes,opens:[],signals:[],closes:0,getInfo:()=>({usbVendorId:0x067b,usbProductId:0x23a3}),
@@ -29,7 +57,7 @@ test('motion requires confirmation, start has one-write guard, S remains unverif
  await s.send('T',{motionConfirmed:true});await assert.rejects(s.send('T',{motionConfirmed:true}),/already requested/);
  await assert.rejects(s.send('I'),/pending/);await s.send('S');p.rx('S\r');await tick();
  assert.match(s.machine,/unverified/);assert.equal(s.starting,true);p.rx('TT\r');await tick();assert.equal(s.starting,false);
- await assert.rejects(s.send('T',{motionConfirmed:true}),/already requested/);assert.deepEqual(p.writes,[[84],[83]]);await s.disconnect();
+ assert.equal(s.canStart,true);await s.send('T',{motionConfirmed:true});assert.deepEqual(p.writes,[[84],[83],[84]]);await s.disconnect();
 });
 test('only observed single-byte commands are available; all have no implicit terminator',async()=>{
  const p=fake(),s=new LiveSession();await s.connect(p);
@@ -102,7 +130,7 @@ test('recorded T/S/TU/H exchange waits for Home, preserves exact bytes, and neve
  assert.equal(s.samples.length,1);assert.equal(s.samples[0].force_lb,0);
  assert.equal(s.rxHex,rows.filter(r=>r.event==='rx').map(r=>r.hex).join(''));assert.deepEqual(p.writes,[[84],[83],[83]]);
  assert.equal(s.entries.filter(r=>r.event==='home_report').length,1);assert.match(s.machine,/S reply/);
- await assert.rejects(s.send('T',{motionConfirmed:true}),/already requested/);await s.disconnect();assert.equal(s.stopReturn.homeReported,true);
+ assert.equal(s.canStart,true);await s.disconnect();assert.equal(s.stopReturn.homeReported,true);
 });
 test('TU framing and return state are separate from an idle S reply, and preserve earlier force-limit evidence',async()=>{
  const p=fake(),s=new LiveSession();await s.connect(p);await s.send('T',{motionConfirmed:true});
@@ -116,11 +144,11 @@ test('TU framing and return state are separate from an idle S reply, and preserv
  assert.match(fast.machine,/Home reply received after/);assert.equal(fast.testIssued,true);await fast.disconnect();
 });
 test('software threshold requires explicit pretest arming, validates range, and sends no setup bytes',async()=>{
- const p=fake(),s=new LiveSession();assert.throws(()=>s.armSoftwareStop(60),/fresh connected/);await s.connect(p);
+ const p=fake(),s=new LiveSession();assert.throws(()=>s.armSoftwareStop(60),/while idle/);await s.connect(p);
  for(const n of [0,9,1001,60.5,NaN,Infinity,''])assert.throws(()=>s.armSoftwareStop(n),/whole-pound/);
  s.armSoftwareStop(60);assert.deepEqual(p.writes,[]);assert.throws(()=>s.armSoftwareStop(80),/Disarm/);
  s.disarmSoftwareStop();s.armSoftwareStop(80);await s.send('T',{motionConfirmed:true});
- assert.throws(()=>s.disarmSoftwareStop(),/after Start/);assert.throws(()=>s.armSoftwareStop(100),/before Start/);assert.equal(s.softwareStop.thresholdLb,80);await s.disconnect();
+ assert.throws(()=>s.disarmSoftwareStop(),/while a test/);assert.throws(()=>s.armSoftwareStop(100),/before Start/);assert.equal(s.softwareStop.thresholdLb,80);await s.disconnect();
 });
 test('one automatic S is latched on the first complete qualifying reading, with reason and exact reading logged',async()=>{
  const p=fake(),s=new LiveSession();await s.connect(p);s.armSoftwareStop(60);await s.send('T',{motionConfirmed:true});

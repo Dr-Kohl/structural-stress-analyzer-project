@@ -1,0 +1,14 @@
+First observed real 100 lb browser software threshold — November 18, 2026
+Source: Downloads/Live-instrument-session.session (2).json, saved 14:42:58 local.
+Byte-exact source preserved with SHA-256. RX/TX hex matches log events; all five numeric RX records match exported samples.
+Connection 9600 8N1, DTR/RTS true; zero startup bytes. V returned V4.0.
+Explicit software_stop_armed 100 lb at elapsed 19.5086; hardware_setting_sent false.
+T at 31.2795 carried software_stop_threshold_lb 100.
+Measurements: 0/.000, 47/.001, 70/.002, 94/.003, 118/.004 (lb/in).
+Zero-to-first-nonzero gap 1.8439 s; subsequent records approximately 70–72 ms apart.
+At 33.5275 reading 118 arrived. At 33.5276 threshold triggered and exactly one S attempted; host write completed at 33.5278. No manual S or host H.
+TU complete at 33.8745, approximately .347 s after auto S; H complete at 36.0922, approximately 2.565 s after S. These are arrival intervals, not mechanical stop times.
+This is the first preserved significant-force threshold-triggered S with subsequent device stop-return and Home reports. User reports it worked. Physical peak force after the final 118 reading is unknown; 118 is the last transmitted value, not a verified maximum. No 100 lb hard cap or stopping-latency guarantee is established.
+The first nonzero reading of 47 rules out a universal rule withholding all readings below 50 or 60 lb. It does not establish the true acquisition threshold, low-load calibration, or explain why weak boards produced no readings.
+Changing browser threshold sends no hardware parameter and cannot by itself enable device telemetry; specimen/setup/run differences remain unresolved. Config globalMax 500 is a local draft, separate from the armed 100 lb software threshold.
+No physical port was opened and no machine commands were sent during this evidence review.

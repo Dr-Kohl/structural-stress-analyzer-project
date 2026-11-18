@@ -15,15 +15,14 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
     async setSignals(signals){state.signals.push(signals);},async close(){state.closes++;}};
    state.rx=value=>input.enqueue(new Uint8Array(Array.from(value,c=>c.charCodeAt(0))));state.unplug=()=>input.error(new Error('mock unplug'));
    window.__ssaFake=state;
-   Object.defineProperty(navigator,'serial',{configurable:true,value:{requestPort:async options=>{state.requests++;state.filter=options;return port;}}});
+   Object.defineProperty(navigator,'serial',{configurable:true,value:{requestPort:async options=>{state.requests++;state.filter=options;if(state.cancelPicker){state.cancelPicker=false;throw new DOMException('No port selected','NotFoundError');}return port;}}});
   });
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.goto(process.env.SSA_TEST_URL||pathToFileURL(path.join(root,'index.html')).href);
   assert.deepEqual(await page.evaluate(()=>[__ssaFake.requests,__ssaFake.opens,__ssaFake.writes.length]),[0,0,0]);
-  await page.locator('#connection').click();await page.locator('#live-connect').click();assert.equal(await page.locator('#live-connect-error').isVisible(),true);
-  assert.equal(await page.evaluate(()=>__ssaFake.requests),0);
-  for(const id of ['live-ready','live-units','live-data-ready'])await page.locator('#'+id).check();
-  await page.locator('#live-connect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
+  await page.evaluate(()=>__ssaFake.cancelPicker=true);await page.locator('#connection').click();
+  assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.equal(await page.locator('#connection').isDisabled(),false);
+  await page.locator('#connection').click();assert.equal(await page.locator('#connection-dialog').count(),0);await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
   assert.deepEqual(await page.evaluate(()=>[__ssaFake.opens,__ssaFake.writes.length]),[1,0]);
   assert.equal(await page.locator('#force').textContent(),'—');assert.equal(await page.locator('#count').textContent(),'0');
   assert.equal(await page.locator('#open-data').isDisabled(),true);
@@ -38,7 +37,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.locator('#machine-stop').click();await page.waitForFunction(()=>__ssaFake.writes.length===3);
   await page.evaluate(()=>__ssaFake.rx('S\r'));await page.waitForFunction(()=>document.getElementById('live-status').textContent.includes('stopped state unverified'));
   await page.evaluate(()=>__ssaFake.rx('TT\r'));await page.waitForFunction(()=>document.getElementById('live-status').textContent.includes('end marker'));
-  assert.equal(await page.locator('#machine-start').isDisabled(),true);
+  await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
   const logEvent=page.waitForEvent('download');await page.locator('#live-save-log').click();const dl=await logEvent;const logFile=path.join(work,dl.suggestedFilename());await dl.saveAs(logFile);
   const log=await fs.readFile(logFile,'utf8');assert.match(log,/"hex":"54"/);assert.match(log,/"text":"S"/);
   await page.locator('#save-data').click();const sessionEvent=page.waitForEvent('download');await page.locator('[data-export=session]').click();const sessionDownload=await sessionEvent;
@@ -56,14 +55,14 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.reload();assert.equal(await page.locator('#count').textContent(),'2');assert.equal(await page.locator('#live-recovered-log').isVisible(),true);
   assert.deepEqual(await page.evaluate(()=>[__ssaFake.opens,__ssaFake.writes.length]),[0,0]);
   // A fresh session, error on RX, and retention of recoverable exact bytes.
-  await page.locator('#connection').click();for(const id of ['live-ready','live-units','live-data-ready'])await page.locator('#'+id).check();await page.locator('#live-connect').click();
+  await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
   await page.evaluate(()=>{__ssaFake.rx('0001,0002\r');});await page.waitForFunction(()=>document.getElementById('count').textContent==='1');
   await page.evaluate(()=>__ssaFake.unplug());await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='fault');
   assert.equal(await page.locator('#machine-start').isDisabled(),true);assert.equal(await page.locator('#machine-stop').isDisabled(),true);assert.equal(await page.locator('#count').textContent(),'1');
   assert.equal(await page.evaluate(()=>__ssaFake.opens),1);assert.deepEqual(errors,[]);
   // Replay the actual wood-trial RX chunks in a fresh mock session, not hardware.
-  await page.locator('#connection').click();await page.locator('#live-connect').click();
+  await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
   await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
   await page.waitForFunction(()=>document.getElementById('machine-start').disabled);
@@ -93,7 +92,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.deepEqual(errors,[]);
   console.log('PASS: actual wood RX replay recognizes TM; persistent force warning; confirmed Home available; Start stays locked; no auto-send; alarm provenance survives session export/recovery; desktop/mobile layout.');
   // Real active-stop recording: TU is followed by a separate firmware Home report.
-  await page.locator('#connection').click();for(const id of ['live-ready','live-units','live-data-ready'])await page.locator('#'+id).check();await page.locator('#live-connect').click();
+  await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
   await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
   await page.waitForFunction(()=>__ssaFake.writes.length===1);
@@ -110,7 +109,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[84],[83]]);
   await page.evaluate(chunks=>{for(const chunk of chunks)__ssaFake.rx(chunk);},rx(stopRows.slice(tu+1,secondStop)));
   await page.waitForFunction(()=>document.getElementById('machine-home').disabled===false);
-  assert.match(await page.locator('#live-stop-state').textContent(),/Home reply after the stop-return marker/);assert.equal(await page.locator('#machine-start').isDisabled(),true);
+  assert.match(await page.locator('#live-stop-state').textContent(),/Home reply after the stop-return marker/);assert.equal(await page.locator('#machine-start').isDisabled(),false);
   await page.locator('#machine-stop').click();await page.evaluate(chunks=>{for(const chunk of chunks)__ssaFake.rx(chunk);},rx(stopRows.slice(secondStop)));
   await page.waitForFunction(()=>document.getElementById('live-status').textContent.includes('S reply'));
   assert.equal(await page.locator('#live-stop-notice').isVisible(),true);assert.equal(await page.locator('#live-limit-notice').isVisible(),false);
@@ -127,7 +126,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.equal(await page.evaluate(()=>__ssaFake.opens),0);assert.deepEqual(errors,[]);
   console.log('PASS: recorded S/TU/H replay; controls wait for Home; no host Home or repeated Start; idle S does not erase return report; export/recovery and responsive layout.');
   // Software threshold requires explicit arming and never follows the local draft.
-  await page.locator('#connection').click();for(const id of ['live-ready','live-units','live-data-ready'])await page.locator('#'+id).check();await page.locator('#live-connect').click();
+  await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
   assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);assert.equal(await page.locator('#software-stop-arm').isDisabled(),true);
   await page.locator('#software-stop-value').fill('60');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
@@ -157,7 +156,7 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   await page.locator('#live-review').click();await page.reload();assert.match(await page.locator('#source-label').textContent(),/Software stop 60 lb: sent/);
   assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);assert.equal(await page.evaluate(()=>__ssaFake.opens),0);
   // Fresh connection never restores arming. Failed automatic write is not retried.
-  await page.locator('#connection').click();for(const id of ['live-ready','live-units','live-data-ready'])await page.locator('#'+id).check();await page.locator('#live-connect').click();
+  await page.locator('#connection').click();
   await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');assert.match(await page.locator('#software-stop-status').textContent(),/Not armed/);
   await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
   await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
@@ -166,5 +165,41 @@ const root=path.join(__dirname,'..'),work=path.join(root,'work/live-browser-chec
   assert.equal(await page.locator('#count').textContent(),'1');assert.equal(await page.locator('#machine-start').isDisabled(),true);assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[84]]);assert.deepEqual(errors,[]);
   console.log('PASS: explicit software threshold arming; no setting writes; locked value independent of draft; exactly one S; crossing audit/export/recovery; no rearming on reconnect; visible no-retry failure; desktop/mobile layout.');
   console.log('PASS: simulated serial connect without writes; version; confirmed single Start; unverified S; fragmented live plot; exact log/session export; 4 layouts; clean disconnect; recovery; no auto-reconnect; unplug data retention.');
+  // Two threshold-assisted tests and a manual Stop share the same connection.
+  await page.reload();await page.locator('#connection').click();
+  await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='connected');
+  assert.deepEqual(await page.evaluate(()=>[__ssaFake.requests,__ssaFake.opens,__ssaFake.writes.length]),[1,1,0]);
+  assert.deepEqual(await page.evaluate(()=>__ssaFake.signals),[{dataTerminalReady:true,requestToSend:true}]);
+  await page.locator('#software-stop-value').fill('60');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.evaluate(()=>__ssaFake.rx('D\r0001,0047\r0002,0070\r'));await page.waitForFunction(()=>__ssaFake.writes.length===2);
+  await page.evaluate(()=>__ssaFake.rx('TU\r'));await page.waitForFunction(()=>!document.getElementById('live-stop-notice').hidden);
+  assert.equal(await page.locator('#machine-start').isDisabled(),true);
+  await page.evaluate(()=>__ssaFake.rx('H\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
+  await page.locator('#software-stop-value').fill('100');await page.locator('#software-stop-consent').check();await page.locator('#software-stop-arm').click();
+  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/ARMED at 100 lb/);
+  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  assert.equal(await page.locator('#count').textContent(),'0');assert.equal(await page.locator('#force').textContent(),'—');
+  await page.evaluate(()=>__ssaFake.rx('D\r0001,0094\r0002,0118\r'));await page.waitForFunction(()=>__ssaFake.writes.length===4);
+  await page.evaluate(()=>__ssaFake.rx('TU\rH\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
+  assert.equal(await page.locator('#count').textContent(),'2');assert.equal(await page.locator('#peak').textContent(),'118');
+  await page.locator('#save-data').click();const multiExport=page.waitForEvent('download');await page.locator('[data-export=session]').click();
+  const multiDl=await multiExport,multiFile=path.join(work,'multiple-tests.session.json');await multiDl.saveAs(multiFile);const multiArchive=JSON.parse(await fs.readFile(multiFile,'utf8'));
+  assert.deepEqual(multiArchive.samples.map(s=>s.force_lb),[94,118]);
+  const multiRows=multiArchive.raw.logText.trim().split('\n').map(JSON.parse);
+  assert.deepEqual(multiRows.filter(e=>e.event==='test_started').map(e=>e.test_index),[1,2]);
+  assert.deepEqual(multiRows.filter(e=>e.event==='software_stop_triggered').map(e=>e.reading.force_lb),[70,118]);
+  assert.match(Buffer.from(multiArchive.raw.rxHex,'hex').toString(),/0001,0047/);assert.equal(multiArchive.raw.txHex,'54535453');
+  await page.locator('#save-dialog [data-close]').first().click();
+  await page.locator('#machine-start').click();assert.match(await page.locator('#motion-description').textContent(),/NOT ARMED/);
+  await page.locator('#motion-ready').check();await page.locator('#motion-send').click();
+  await page.evaluate(()=>__ssaFake.rx('D\r0001,0200\r'));await page.waitForFunction(()=>document.getElementById('count').textContent==='1');
+  assert.equal(await page.evaluate(()=>__ssaFake.writes.length),5,'previous threshold must not automatically rearm');
+  await page.locator('#machine-stop').click();await page.evaluate(()=>__ssaFake.rx('TU\rH\r'));await page.waitForFunction(()=>!document.getElementById('machine-start').disabled);
+  assert.deepEqual(await page.evaluate(()=>[__ssaFake.opens,__ssaFake.closes,__ssaFake.requests]),[1,0,1]);
+  assert.deepEqual(await page.evaluate(()=>__ssaFake.writes),[[84],[83],[84],[83],[84],[83]]);assert.deepEqual(errors,[]);
+  await page.screenshot({path:path.join(work,'multiple-tests-desktop.png'),fullPage:true});
+  await page.locator('#disconnect').click();await page.waitForFunction(()=>document.getElementById('live-phase').textContent==='disconnected');
+  console.log('PASS: direct picker with cancellation; three Starts/Stops on one port; wait for Home; fresh graph; per-test threshold consent; complete multi-test raw export; no automatic rearm or reconnect.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

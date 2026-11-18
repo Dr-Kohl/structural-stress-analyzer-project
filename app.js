@@ -111,7 +111,6 @@ function renderConfig(){
 function showDialog(id){pause();update();$(id).showModal();}
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>b.closest('dialog').close()));
 $('dismiss-notice').addEventListener('click',()=>$('notice').hidden=true);
-$('connection').addEventListener('click',()=>showDialog('connection-dialog'));
 $('settings').addEventListener('click',()=>{
  const form=$('settings-form');for(const key of Object.keys(session.metadata))form.elements[key].value=session.metadata[key];showDialog('settings-dialog');
 });
@@ -252,7 +251,7 @@ window.SSAView={
   $('workspace-mode').textContent='Live research';$('recording-date').textContent='LIVE SESSION · WAITING FOR DATA';
   document.querySelector('.metrics article:nth-child(1) > span').textContent='Last received force';
   document.querySelector('.metrics article:nth-child(2) > span').textContent='Last received displacement';
-  $('session-title').textContent='Live instrument session';$('source-label').textContent='Previous graph hidden — awaiting this connection’s measurements';
+  $('session-title').textContent='Live instrument session';$('source-label').textContent='Previous graph hidden — awaiting the next test’s measurements';
   $('recording-note').textContent='SAE units must be selected on the tester. Machine settings and limits are not verified by this page.';
   $('fault-banner').hidden=true;update();
  },
@@ -261,10 +260,10 @@ window.SSAView={
   liveHasData=true;
   const stop=live.softwareStop,stopDescription=stop?' · Software stop '+stop.thresholdLb+' lb: '+stop.status+(stop.crossing?' (trigger reading '+stop.crossing.force_lb+' lb)':''):' · Software stop not armed';
   const next=W.makeSession(live.samples,{metadata:{...session.metadata,title:'Live instrument session'},config:session.config,
-   source:{name:'Browser Web Serial recording',description:'Live serial arrivals · SAE units confirmed by operator'+stopDescription+(live.lastTestResult?.kind==='force-limit'?' · Device reported maximum force exceeded':'')+(live.stopReturn?(live.stopReturn.homeReported?' · Stop-return marker followed by Home reply':' · Stop-return marker; Home reply not received'):''),timing:'Browser receive times'},
-   raw:{rxHex:live.rxHex,txHex:live.txHex,kind:'Exact Web Serial bytes; host write is not device acknowledgment',logText:live.log()},activity:session.activity});
+   source:{name:'Browser Web Serial recording',description:'Live test '+live.testIndex+' · SAE inches/pounds (set on instrument)'+stopDescription+(live.lastTestResult?.kind==='force-limit'?' · Device reported maximum force exceeded':'')+(live.stopReturn?(live.stopReturn.homeReported?' · Stop-return marker followed by Home reply':' · Stop-return marker; Home reply not received'):''),timing:'Browser receive times'},
+   raw:{rxHex:live.rxHex,txHex:live.txHex,kind:'All tests in this connection; test_index labels run boundaries. Host write is not device acknowledgment',logText:live.log()},activity:session.activity});
   loadSession(next);$('recording-date').textContent='LIVE INSTRUMENT RECORDING';$('count-total').textContent='/ live';
-  $('recording-note').textContent='Live serial arrival times; SAE inches/pounds confirmed by operator. Draft settings are not instrument limits. All readings are retained.';
+  $('recording-note').textContent='Graph and measurements: current test '+live.testIndex+'. Complete session and live log retain exact bytes for every test in this connection. SAE units required; draft settings are not instrument limits.';
   document.querySelectorAll('[data-export]').forEach(b=>b.disabled=false);
   $('export-state').textContent='Live data changed — export to keep a portable copy';persist();
  },

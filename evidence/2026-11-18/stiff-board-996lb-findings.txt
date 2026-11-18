@@ -1,0 +1,11 @@
+Stiff-board recording review — November 18, 2026
+Source: Downloads/Live-instrument-session.session (1).json, saved 11:49:52 local.
+Raw recording begins 16:46:41.845Z. Preserved byte-exact with SHA-256.
+30 parsed readings match all 30 exact numeric RX records; concatenated RX events match exported rxHex.
+First reading 0 lb / .000 in. No additional readings for 3.0238 s.
+Next readings: 63/.001, 95/.002, 127/.003, 161/.004, 196/.005 (lb/in).
+Then a smooth increasing sequence; final transmitted 996 lb/.028 in at relative sample time 5.0296 s, followed by TM (maximum-force event).
+From first nonzero to last: approximately 2.006 s; most arrivals approximately 72 ms apart.
+Host TX T then H. No S. Software threshold was NOT ARMED; Start annotation threshold null. Local config globalMax 500 is a draft, not an applied setting.
+After explicit H: TU, then H. TU is not exclusive proof of S; this case followed host H after TM.
+Interpretation: no evidence the browser hid low-force numeric records; none were received between zero and 63. Responsive force/displacement does not verify calibration, actual low-load sensitivity, or physical load path. First nonzero force alone does not establish a 63-lb trigger threshold. Weak specimen below useful range, sampling during rapid force rise, acquisition gating and fixture behavior remain possible. No new machine commands were sent during review.
